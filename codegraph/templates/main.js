@@ -225,6 +225,96 @@ function updateFontSizes(scale) {
     });
 }
 
+function updateIconWireSizes(scale) {
+    // Update node sizes with scaling
+    node.each(function(d) {
+        const el = d3.select(this);
+        const isHighlighted = el.classed('highlighted-main') || el.classed('highlighted');
+        const multiplier = isHighlighted ? iconWireScaleFactor / scale : 1;
+        if (d.type === "module") {
+            const baseSize = getNodeSize(d, 30);
+            const size = baseSize * multiplier;
+            const clampedSize = Math.max(10, Math.min(200, size));
+            el.select("rect")
+                .attr("width", clampedSize)
+                .attr("height", clampedSize)
+                .attr("x", -clampedSize / 2)
+                .attr("y", -clampedSize / 2);
+        } else if (d.type === "entity" || d.type === "external") {
+            const baseR = getNodeSize(d, 10);
+            const r = baseR * multiplier;
+            const clampedR = Math.max(5, Math.min(100, r));
+            el.select("circle").attr("r", clampedR);
+        }
+    });
+    // Update link stroke widths
+    link.each(function(d) {
+        const el = d3.select(this);
+        const isHighlighted = el.classed('highlighted');
+        const multiplier = isHighlighted ? iconWireScaleFactor / scale : 1;
+        const baseWidth = 2;
+        const width = baseWidth * multiplier;
+        const clampedWidth = Math.max(1, Math.min(10, width));
+        el.style("stroke-width", clampedWidth + "px");
+    });
+    // Update labels position
+    labels.attr("dy", d => {
+        const el = node.filter(n => n.id === d.id);
+        if (d.type === "module") {
+            const size = +el.select("rect").attr("width");
+            return size / 2 + 15;
+        } else {
+            const r = +el.select("circle").attr("r");
+            return r + 10;
+        }
+    });
+}
+
+function isLinkHighlighted(d, highlightedNodeId) {
+    const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+    const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+    const isOut = sourceId === highlightedNodeId;
+    const isIn = targetId === highlightedNodeId;
+    if (d.type === 'module-module') {
+        if (isOut && highlightLinkFilters.mmOut) return true;
+        if (isIn && highlightLinkFilters.mmIn) return true;
+    } else if (d.type === 'module-entity') {
+        if (isOut && highlightLinkFilters.meOut) return true;
+        if (isIn && highlightLinkFilters.meIn) return true;
+    }
+    return false;
+}
+
+function formatPathForDisplay(fullPath, levels) {
+    if (!fullPath) return '';
+    
+    const parts = fullPath.split(/[\/\\]/);
+    if (levels <= 0) {
+        // Return just filename
+        return parts[parts.length - 1] || '';
+    }
+    
+    const startIndex = Math.max(0, parts.length - levels - 1);
+    return parts.slice(startIndex).join('/');
+}
+
+function updatePathDisplay() {
+    labels.text(function(d) {
+        const isHighlighted = d3.select(this).classed('highlighted-label');
+        const originalLabel = d.label || d.id;
+        
+        if (!isHighlighted) {
+            return originalLabel;
+        }
+        
+        const fullPath = d.fullPath || d.parent;
+        if (!fullPath) return originalLabel;
+        
+        const displayPath = formatPathForDisplay(fullPath, pathSubfolderLevels);
+        return displayPath || originalLabel;
+    });
+}
+
 const zoom = d3.zoom()
     .scaleExtent([0.05, 4])
     .on("zoom", (event) => {
@@ -232,6 +322,7 @@ const zoom = d3.zoom()
         currentScale = event.transform.k;
         // Adjust font sizes based on zoom scale
         updateFontSizes(currentScale);
+        updateIconWireSizes(currentScale);
     });
 
 svg.call(zoom);
@@ -391,6 +482,7 @@ function updateNodeSizes() {
 document.getElementById('size-by-code').addEventListener('change', function() {
     sizeByCode = this.checked;
     updateNodeSizes();
+    updateIconWireSizes(currentScale);
 });
 
 // Display filter state
@@ -437,6 +529,31 @@ document.getElementById('max-highlight-font').addEventListener('input', function
     maxHighlightFontSize = parseInt(this.value) || 32;
     // Update font sizes immediately
     updateFontSizes(currentScale);
+});
+document.getElementById('icon-wire-scale').addEventListener('input', function() {
+    iconWireScaleFactor = parseFloat(this.value) || 1.0;
+    // Update icon and wire sizes immediately
+    updateIconWireSizes(currentScale);
+});
+document.getElementById('highlight-link-mm-out').addEventListener('change', function() {
+    highlightLinkFilters.mmOut = this.checked;
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
+});
+document.getElementById('highlight-link-mm-in').addEventListener('change', function() {
+    highlightLinkFilters.mmIn = this.checked;
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
+});
+document.getElementById('highlight-link-me-out').addEventListener('change', function() {
+    highlightLinkFilters.meOut = this.checked;
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
+});
+document.getElementById('highlight-link-me-in').addEventListener('change', function() {
+    highlightLinkFilters.meIn = this.checked;
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
+});
+document.getElementById('path-subfolder-levels').addEventListener('input', function() {
+    pathSubfolderLevels = parseInt(this.value) || 0;
+    updatePathDisplay();
 });
 
 // Check if node should be hidden by display filter
@@ -718,8 +835,17 @@ const autocompleteList = document.getElementById('autocompleteList');
 let selectedAutocompleteIndex = -1;
 let currentHighlightedNode = null;
 let maxHighlightFontSize = 32;
+let iconWireScaleFactor = 1.0;
 let currentScale = 1;
 let filteredNodes = [];
+let highlightLinkFilters = {
+    mmOut: true,
+    mmIn: true,
+    meOut: true,
+    meIn: true
+};
+let showHighlightedPath = true;
+let pathSubfolderLevels = 0;
 
 // Build searchable index
 const searchIndex = graphData.nodes.map(n => ({
@@ -798,32 +924,33 @@ function zoomToFitNodes(nodeIds) {
 
 // Highlight a node and its connections
 function highlightNode(nodeId) {
-    const connectedNodes = getConnectedNodes(nodeId);
+    const connectedLinks = graphData.links.filter(d => isLinkHighlighted(d, nodeId));
+    const connectedNodes = new Set();
+    connectedLinks.forEach(l => {
+        const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+        const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+        if (sourceId !== nodeId) connectedNodes.add(sourceId);
+        if (targetId !== nodeId) connectedNodes.add(targetId);
+    });
     currentHighlightedNode = nodeId;
 
     // Update nodes
-    node.classed('dimmed', d => !connectedNodes.has(d.id))
+    node.classed('dimmed', d => d.id !== nodeId && !connectedNodes.has(d.id))
         .classed('highlighted', d => connectedNodes.has(d.id) && d.id !== nodeId)
         .classed('highlighted-main', d => d.id === nodeId);
 
     // Update links
-    link.classed('dimmed', d => {
-        const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
-        const targetId = typeof d.target === 'object' ? d.target.id : d.target;
-        return sourceId !== nodeId && targetId !== nodeId;
-    })
-    .classed('highlighted', d => {
-        const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
-        const targetId = typeof d.target === 'object' ? d.target.id : d.target;
-        return sourceId === nodeId || targetId === nodeId;
-    });
+    link.classed('dimmed', d => !isLinkHighlighted(d, nodeId))
+        .classed('highlighted', d => isLinkHighlighted(d, nodeId));
 
     // Update labels
-    labels.classed('dimmed', d => !connectedNodes.has(d.id))
-        .classed('highlighted-label', d => connectedNodes.has(d.id));
+    labels.classed('dimmed', d => d.id !== nodeId && !connectedNodes.has(d.id))
+        .classed('highlighted-label', d => d.id === nodeId || connectedNodes.has(d.id));
 
     // Zoom to fit all connected nodes
     zoomToFitNodes(connectedNodes);
+    updateIconWireSizes(currentScale);
+    updatePathDisplay();
 }
 
 // Clear all highlighting
@@ -843,6 +970,8 @@ function clearHighlight() {
     searchInput.value = '';
     searchClear.classList.remove('visible');
     hideAutocomplete();
+    updateIconWireSizes(currentScale);
+    updatePathDisplay();
 }
 
 // Filter nodes based on search query
