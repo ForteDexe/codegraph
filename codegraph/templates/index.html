@@ -22,31 +22,25 @@
         </div>
     </div>
 
-    <!-- Highlight info banner -->
-    <div class="highlight-info" id="highlightInfo">
-        <span id="highlightText">Highlighting: </span>
-        <button id="clearHighlight">Clear (Esc)</button>
-    </div>
-
-    <div class="panel controls" id="controls-panel">
+    <div class="panel controls collapsed" id="controls-panel">
         <div class="panel-header">
             <h4>Controls</h4>
-            <button class="panel-toggle" title="Collapse">−</button>
+            <button class="panel-toggle" title="Expand">+</button>
         </div>
         <div class="panel-content">
             <p><kbd>Ctrl+F</kbd> Search nodes</p>
             <p><kbd>Scroll</kbd> Zoom in/out</p>
             <p><kbd>Drag</kbd> on background - Pan</p>
             <p><kbd>Drag</kbd> on node - Pin node position</p>
-            <p><kbd>Click</kbd> module/entity - Collapse/Expand</p>
-            <p><kbd>Double-click</kbd> - Unpin / Focus on node</p>
+            <p><kbd>Click</kbd> module/entity - Pin node (highlight connections)</p>
+            <p><kbd>Double-click</kbd> - Collapse/Expand</p>
             <p><kbd>Esc</kbd> Clear search highlight</p>
         </div>
     </div>
-    <div class="panel legend" id="legend-panel">
+    <div class="panel legend collapsed" id="legend-panel">
         <div class="panel-header">
             <h4>Legend</h4>
-            <button class="panel-toggle" title="Collapse">−</button>
+            <button class="panel-toggle" title="Expand">+</button>
         </div>
         <div class="panel-content">
             <div class="legend-section">
@@ -81,17 +75,17 @@
             </div>
         </div>
     </div>
-    <div class="panel stats" id="stats">
+    <div class="panel stats collapsed" id="stats">
         <div class="panel-header">
             <h4>Statistics</h4>
-            <button class="panel-toggle" title="Collapse">−</button>
+            <button class="panel-toggle" title="Expand">+</button>
         </div>
         <div class="panel-content" id="stats-content"></div>
     </div>
-    <div class="panel unlinked-modules" id="unlinked-modules">
+    <div class="panel unlinked-modules collapsed" id="unlinked-modules">
         <div class="panel-header">
             <h4>Connections</h4>
-            <button class="panel-toggle" title="Collapse">−</button>
+            <button class="panel-toggle" title="Expand">+</button>
         </div>
         <div class="panel-content">
             <div class="unlinked-tabs">
@@ -114,10 +108,10 @@
             </div>
         </div>
     </div>
-    <div class="panel massive-objects" id="massive-objects">
+    <div class="panel massive-objects collapsed" id="massive-objects">
         <div class="panel-header">
             <h4>Massive Objects <span class="count" id="massive-count"></span></h4>
-            <button class="panel-toggle" title="Collapse">−</button>
+            <button class="panel-toggle" title="Expand">+</button>
         </div>
         <div class="panel-content">
             <div class="filters">
@@ -134,10 +128,10 @@
             <ul id="massive-list"></ul>
         </div>
     </div>
-    <div class="panel size-toggle" id="size-toggle-panel">
+    <div class="panel size-toggle collapsed" id="size-toggle-panel">
         <div class="panel-header">
             <h4>Display</h4>
-            <button class="panel-toggle" title="Collapse">−</button>
+            <button class="panel-toggle" title="Expand">+</button>
         </div>
         <div class="panel-content">
             <label>
@@ -156,6 +150,10 @@
                 <label><input type="checkbox" id="show-link-module" checked> Module → Module</label>
                 <label><input type="checkbox" id="show-link-entity" checked> Module → Entity</label>
                 <label><input type="checkbox" id="show-link-dependency" checked> Dependencies</label>
+            </div>
+            <div class="display-section">
+                <h5>Font Settings</h5>
+                <label>Max highlighted font size: <input type="number" id="max-highlight-font" value="32" min="16" max="100"></label>
             </div>
         </div>
     </div>

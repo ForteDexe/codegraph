@@ -83,6 +83,9 @@ body {
 .label-hidden {
     opacity: 0;
 }
+.label.highlighted-label {
+    font-size: 16px;
+}
 .tooltip {
     position: absolute;
     background: rgba(0, 0, 0, 0.9);
@@ -550,33 +553,6 @@ body {
 .autocomplete-item .node-parent {
     color: #888;
     font-size: 12px;
-}
-.highlight-info {
-    position: fixed;
-    bottom: 10px;
-    right: 10px;
-    background: rgba(112, 184, 255, 0.9);
-    color: #000;
-    padding: 10px 15px;
-    border-radius: 8px;
-    font-size: 12px;
-    display: none;
-    align-items: center;
-    gap: 10px;
-}
-.highlight-info.visible {
-    display: flex;
-}
-.highlight-info button {
-    background: #333;
-    color: #fff;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-.highlight-info button:hover {
-    background: #555;
 }
 /* Dimmed state for non-highlighted nodes/links */
 .node.dimmed {

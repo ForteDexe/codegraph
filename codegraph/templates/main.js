@@ -213,13 +213,37 @@ const svg = d3.select("#graph")
 // Add zoom behavior
 const g = svg.append("g");
 
+// Function to update font sizes based on zoom scale
+function updateFontSizes(scale) {
+    labels.style("font-size", function(d) {
+        const baseSize = d.type === 'module' ? 13 : 11;
+        const scaledSize = baseSize / scale;
+        const isHighlighted = d3.select(this).classed('highlighted-label');
+        const maxSize = isHighlighted ? maxHighlightFontSize : 24;
+        // Clamp to reasonable range
+        return Math.max(6, Math.min(maxSize, scaledSize)) + "px";
+    });
+}
+
 const zoom = d3.zoom()
     .scaleExtent([0.05, 4])
     .on("zoom", (event) => {
         g.attr("transform", event.transform);
+        currentScale = event.transform.k;
+        // Adjust font sizes based on zoom scale
+        updateFontSizes(currentScale);
     });
 
 svg.call(zoom);
+
+// Handle clicks on blank space to unpin highlighted node and zoom out
+svg.on("click", function(event) {
+    // Only trigger if clicking on the SVG itself (not on nodes or other elements)
+    if (event.target === this && currentHighlightedNode !== null) {
+        clearHighlight();
+        zoomToFit();
+    }
+});
 
 // Tooltip
 const tooltip = d3.select("#tooltip");
@@ -272,6 +296,9 @@ defs.append("marker")
 // Scale spacing based on number of nodes
 const nodeCount = graphData.nodes.length;
 const scaleFactor = nodeCount > 40 ? 1 + (nodeCount - 40) / 50 : 1;
+
+// Flag to ensure zoom-to-fit only happens once
+let initialZoomDone = false;
 
 // Create force simulation with adjusted parameters for better spacing
 const simulation = d3.forceSimulation(graphData.nodes)
@@ -406,6 +433,11 @@ document.getElementById('show-link-dependency').addEventListener('change', funct
     displayFilters.showLinkDependency = this.checked;
     updateDisplayFilters();
 });
+document.getElementById('max-highlight-font').addEventListener('input', function() {
+    maxHighlightFontSize = parseInt(this.value) || 32;
+    // Update font sizes immediately
+    updateFontSizes(currentScale);
+});
 
 // Check if node should be hidden by display filter
 function isNodeFilteredOut(nodeData) {
@@ -474,6 +506,9 @@ const labels = g.append("g")
     .attr("text-anchor", "middle")
     .text(d => d.label || d.id);
 
+// Initialize font sizes
+updateFontSizes(1);
+
 // Node interactions
 node.on("mouseover", function(event, d) {
     // Highlight connected links
@@ -515,26 +550,11 @@ node.on("mouseover", function(event, d) {
     tooltip.style("opacity", 0);
 })
 .on("click", function(event, d) {
-    if (d.type === "module" || d.type === "entity") {
-        toggleCollapse(d);
-    }
+    highlightNode(d.id);
 })
 .on("dblclick", function(event, d) {
-    event.stopPropagation();
-    // If node is pinned (was dragged), release it
-    if (d.fx !== null || d.fy !== null) {
-        d.fx = null;
-        d.fy = null;
-        simulation.alpha(0.3).restart();
-    } else {
-        // Focus on this node (zoom to it)
-        const scale = 1.5;
-        svg.transition()
-            .duration(500)
-            .call(zoom.transform, d3.zoomIdentity
-                .translate(width / 2, height / 2)
-                .scale(scale)
-                .translate(-d.x, -d.y));
+    if (d.type === "module" || d.type === "entity") {
+        toggleCollapse(d);
     }
 });
 
@@ -645,7 +665,7 @@ function dragended(event, d) {
 }
 
 // Initial zoom to fit content
-simulation.on("end", () => {
+function zoomToFit() {
     // Calculate bounds for ALL nodes
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     graphData.nodes.forEach(n => {
@@ -681,6 +701,12 @@ simulation.on("end", () => {
             .translate(width / 2, height / 2)
             .scale(scale)
             .translate(-centerX, -centerY));
+}
+
+simulation.on("end", () => {
+    if (initialZoomDone) return;
+    // Disabled: zoomToFit();
+    initialZoomDone = true;
 });
 
 // ==================== SEARCH FUNCTIONALITY ====================
@@ -688,12 +714,11 @@ simulation.on("end", () => {
 const searchInput = document.getElementById('searchInput');
 const searchClear = document.getElementById('searchClear');
 const autocompleteList = document.getElementById('autocompleteList');
-const highlightInfo = document.getElementById('highlightInfo');
-const highlightText = document.getElementById('highlightText');
-const clearHighlightBtn = document.getElementById('clearHighlight');
 
 let selectedAutocompleteIndex = -1;
 let currentHighlightedNode = null;
+let maxHighlightFontSize = 32;
+let currentScale = 1;
 let filteredNodes = [];
 
 // Build searchable index
@@ -734,6 +759,43 @@ function getConnectedLinks(nodeId) {
     });
 }
 
+// Zoom to fit a set of nodes
+function zoomToFitNodes(nodeIds) {
+    if (nodeIds.size === 0) return;
+
+    // Calculate bounds for the specified nodes
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    graphData.nodes.forEach(n => {
+        if (nodeIds.has(n.id)) {
+            minX = Math.min(minX, n.x);
+            maxX = Math.max(maxX, n.x);
+            minY = Math.min(minY, n.y);
+            maxY = Math.max(maxY, n.y);
+        }
+    });
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    const padding = 150; // More padding for highlight mode
+    const graphWidth = maxX - minX + padding * 2;
+    const graphHeight = maxY - minY + padding * 2;
+
+    // Calculate scale to fit all nodes
+    const fitScale = Math.min(width / graphWidth, height / graphHeight);
+
+    // Limit max zoom to avoid zooming too close
+    const maxZoom = 1.5;
+    const scale = Math.min(fitScale * 0.9, maxZoom);
+
+    svg.transition()
+        .duration(500)
+        .call(zoom.transform, d3.zoomIdentity
+            .translate(width / 2, height / 2)
+            .scale(scale)
+            .translate(-centerX, -centerY));
+}
+
 // Highlight a node and its connections
 function highlightNode(nodeId) {
     const connectedNodes = getConnectedNodes(nodeId);
@@ -757,24 +819,11 @@ function highlightNode(nodeId) {
     });
 
     // Update labels
-    labels.classed('dimmed', d => !connectedNodes.has(d.id));
+    labels.classed('dimmed', d => !connectedNodes.has(d.id))
+        .classed('highlighted-label', d => connectedNodes.has(d.id));
 
-    // Show highlight info
-    const nodeData = graphData.nodes.find(n => n.id === nodeId);
-    highlightText.textContent = `Highlighting: ${nodeData.label || nodeData.id} (${connectedNodes.size} connected)`;
-    highlightInfo.classList.add('visible');
-
-    // Zoom to the node
-    const targetNode = graphData.nodes.find(n => n.id === nodeId);
-    if (targetNode) {
-        const scale = 1.2;
-        svg.transition()
-            .duration(500)
-            .call(zoom.transform, d3.zoomIdentity
-                .translate(width / 2, height / 2)
-                .scale(scale)
-                .translate(-targetNode.x, -targetNode.y));
-    }
+    // Zoom to fit all connected nodes
+    zoomToFitNodes(connectedNodes);
 }
 
 // Clear all highlighting
@@ -788,9 +837,9 @@ function clearHighlight() {
     link.classed('dimmed', false)
         .classed('highlighted', false);
 
-    labels.classed('dimmed', false);
+    labels.classed('dimmed', false)
+        .classed('highlighted-label', false);
 
-    highlightInfo.classList.remove('visible');
     searchInput.value = '';
     searchClear.classList.remove('visible');
     hideAutocomplete();
@@ -916,11 +965,6 @@ searchInput.addEventListener('focus', () => {
 
 // Clear button
 searchClear.addEventListener('click', () => {
-    clearHighlight();
-});
-
-// Clear highlight button
-clearHighlightBtn.addEventListener('click', () => {
     clearHighlight();
 });
 
