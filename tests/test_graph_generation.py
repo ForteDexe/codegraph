@@ -173,11 +173,11 @@ class TestD3FormatConversion:
         assert "nodes" in result
         assert "links" in result
 
-        # Check nodes - entity IDs use format module.py:entity_name
+        # Check nodes - module IDs now use format 'module' (no .py), entity IDs use 'module:entity_name'
         node_ids = [n["id"] for n in result["nodes"]]
-        assert "module.py" in node_ids
-        assert "module.py:func_a" in node_ids
-        assert "module.py:func_b" in node_ids
+        assert "module" in node_ids
+        assert "module:func_a" in node_ids
+        assert "module:func_b" in node_ids
 
         # Check links
         links = result["links"]
@@ -196,8 +196,9 @@ class TestD3FormatConversion:
         result = convert_to_d3_format(usage_graph)
 
         node_ids = [n["id"] for n in result["nodes"]]
-        assert "a.py" in node_ids
-        assert "b.py" in node_ids
+        # Module IDs are now without .py extension
+        assert "a" in node_ids
+        assert "b" in node_ids
 
         # Check module types
         module_nodes = [n for n in result["nodes"] if n["type"] == "module"]
@@ -510,4 +511,125 @@ class TestCSVExport:
         assert codegraph_row['parent_module'] == 'core.py'
         assert int(codegraph_row['lines']) > 0
 
+        pathlib.Path(output_path).unlink()
+
+
+class TestDuplicateFilenames:
+    """Tests for handling duplicate filenames in different directories."""
+
+    def test_duplicate_filename_handling(self):
+        """Test that files with same basename in different directories are handled correctly."""
+        test_dir = TEST_DATA_DIR / "duplicate_names"
+        args = Namespace(paths=[str(test_dir)])
+        
+        code_graph = CodeGraph(args)
+        usage_graph = code_graph.usage_graph()
+        entity_metadata = code_graph.get_entity_metadata()
+        
+        # Get all module paths
+        module_paths = list(usage_graph.keys())
+        
+        # Should have both utils.py files
+        src_utils = [p for p in module_paths if p.endswith('src\\utils.py') or p.endswith('src/utils.py')]
+        test_utils = [p for p in module_paths if p.endswith('tests\\utils.py') or p.endswith('tests/utils.py')]
+        
+        assert len(src_utils) == 1, "Should find src/utils.py"
+        assert len(test_utils) == 1, "Should find tests/utils.py"
+        
+        # Convert to D3 format to check node IDs
+        graph_data = convert_to_d3_format(usage_graph, entity_metadata, code_graph.base_paths)
+        nodes = graph_data["nodes"]
+        
+        # Extract module nodes
+        module_nodes = [n for n in nodes if n["type"] == "module"]
+        module_ids = [n["id"] for n in module_nodes]
+        
+        # Should have unique IDs for both utils modules
+        utils_nodes = [n for n in module_nodes if "utils" in n["id"]]
+        assert len(utils_nodes) == 2, f"Should have 2 utils module nodes, got {len(utils_nodes)}"
+        
+        # IDs should be different (path-based)
+        utils_ids = [n["id"] for n in utils_nodes]
+        assert utils_ids[0] != utils_ids[1], f"Utils module IDs should be different: {utils_ids}"
+        
+        # Both should have path information in their IDs
+        assert any("src" in uid for uid in utils_ids), "One utils should have 'src' in ID"
+        assert any("tests" in uid or "test" in uid for uid in utils_ids), "One utils should have 'tests' in ID"
+        
+        # Labels should show basename for readability
+        for utils_node in utils_nodes:
+            assert utils_node["label"] == "utils", f"Label should be 'utils', got {utils_node['label']}"
+        
+        # fullPath should be different
+        utils_paths = [n["fullPath"] for n in utils_nodes]
+        assert utils_paths[0] != utils_paths[1], f"Full paths should be different: {utils_paths}"
+
+    def test_duplicate_filename_dependencies(self):
+        """Test that dependencies are correctly attributed when filenames are duplicated."""
+        test_dir = TEST_DATA_DIR / "duplicate_names"
+        args = Namespace(paths=[str(test_dir)])
+        
+        code_graph = CodeGraph(args)
+        usage_graph = code_graph.usage_graph()
+        entity_metadata = code_graph.get_entity_metadata()
+        
+        # Convert to D3 format
+        graph_data = convert_to_d3_format(usage_graph, entity_metadata, code_graph.base_paths)
+        links = graph_data["links"]
+        
+        # Find links involving utils modules
+        # src/main.py should link to src/utils.py entities
+        # tests/test_main.py should link to tests/utils.py entities
+        
+        # Get all dependency links (exclude module-entity structural links)
+        dep_links = [l for l in links if l["type"] == "dependency"]
+        
+        # Should have some dependency links
+        assert len(dep_links) > 0, "Should have dependency links"
+        
+        # Check that src/main links to src/utils functions
+        src_main_links = [l for l in dep_links if "main" in str(l["source"]) and "src" in str(l["source"])]
+        if src_main_links:
+            # These should target src/utils entities, not tests/utils
+            for link in src_main_links:
+                target = link["target"]
+                if "utils" in str(target):
+                    assert "src" in str(target) or "test" not in str(target).lower(), \
+                        f"src/main should link to src/utils, not tests/utils: {target}"
+
+    def test_duplicate_filename_csv_export(self):
+        """Test that CSV export correctly handles duplicate filenames."""
+        test_dir = TEST_DATA_DIR / "duplicate_names"
+        args = Namespace(paths=[str(test_dir)])
+        
+        code_graph = CodeGraph(args)
+        usage_graph = code_graph.usage_graph()
+        entity_metadata = code_graph.get_entity_metadata()
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            output_path = f.name
+        
+        export_to_csv(usage_graph, entity_metadata=entity_metadata, 
+                     output_path=output_path, base_paths=code_graph.base_paths)
+        
+        # Read and verify CSV
+        with open(output_path, 'r', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            rows = list(reader)
+        
+        # Find both utils modules in CSV
+        utils_modules = [r for r in rows if r['type'] == 'module' and 'utils' in r['name']]
+        
+        # Should have 2 utils module entries
+        assert len(utils_modules) >= 2, f"Should have at least 2 utils modules in CSV, got {len(utils_modules)}"
+        
+        # Their full paths should be different
+        utils_paths = [r['full_path'] for r in utils_modules]
+        assert len(set(utils_paths)) >= 2, f"Utils modules should have different full paths: {utils_paths}"
+        
+        # Verify one is in src and one is in tests
+        path_strs = ' '.join(utils_paths)
+        assert 'src' in path_strs.lower(), "Should have src/utils in paths"
+        assert 'test' in path_strs.lower(), "Should have tests/utils in paths"
+        
         pathlib.Path(output_path).unlink()

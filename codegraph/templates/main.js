@@ -145,7 +145,7 @@ document.getElementById('links-threshold').addEventListener('input', updateLinks
 updateLinksCount();
 
 // Size scaling state
-let sizeByCode = true;
+let sizeByCode = false;
 
 // Calculate max lines for scaling
 const maxLines = Math.max(...graphData.nodes.map(n => n.lines || 0), 1);
@@ -230,11 +230,14 @@ function updateIconWireSizes(scale) {
     node.each(function(d) {
         const el = d3.select(this);
         const isHighlighted = el.classed('highlighted-main') || el.classed('highlighted');
-        const multiplier = isHighlighted ? iconWireScaleFactor / scale : 1;
+        const isDimmed = el.classed('dimmed');
+        const multiplier = (isHighlighted && !isDimmed) ? iconWireScaleFactor / scale : 1;
         if (d.type === "module") {
             const baseSize = getNodeSize(d, 30);
             const size = baseSize * multiplier;
-            const clampedSize = Math.max(10, Math.min(200, size));
+            // Use scale factor to determine reasonable max (higher scale factor = higher max)
+            const maxSize = 200 * iconWireScaleFactor;
+            const clampedSize = Math.max(10, Math.min(maxSize, size));
             el.select("rect")
                 .attr("width", clampedSize)
                 .attr("height", clampedSize)
@@ -243,7 +246,9 @@ function updateIconWireSizes(scale) {
         } else if (d.type === "entity" || d.type === "external") {
             const baseR = getNodeSize(d, 10);
             const r = baseR * multiplier;
-            const clampedR = Math.max(5, Math.min(100, r));
+            // Use scale factor to determine reasonable max (higher scale factor = higher max)
+            const maxR = 100 * iconWireScaleFactor;
+            const clampedR = Math.max(5, Math.min(maxR, r));
             el.select("circle").attr("r", clampedR);
         }
     });
@@ -251,10 +256,18 @@ function updateIconWireSizes(scale) {
     link.each(function(d) {
         const el = d3.select(this);
         const isHighlighted = el.classed('highlighted');
-        const multiplier = isHighlighted ? iconWireScaleFactor / scale : 1;
+        const isDimmed = el.classed('dimmed');
+        
+        // Use same multiplier as icons - only highlighted arrows scale with zoom
+        const multiplier = (isHighlighted && !isDimmed) ? iconWireScaleFactor / scale : 1;
+        
+        // Use same base width for all link types for consistent arrow scaling
         const baseWidth = 2;
+        
         const width = baseWidth * multiplier;
-        const clampedWidth = Math.max(1, Math.min(10, width));
+        // Reduce max for better balance
+        const maxWidth = 18.75 * iconWireScaleFactor;
+        const clampedWidth = Math.max(1, Math.min(maxWidth, width));
         el.style("stroke-width", clampedWidth + "px");
     });
     // Update labels position
@@ -281,6 +294,10 @@ function isLinkHighlighted(d, highlightedNodeId) {
     } else if (d.type === 'module-entity') {
         if (isOut && highlightLinkFilters.meOut) return true;
         if (isIn && highlightLinkFilters.meIn) return true;
+    } else if (d.type === 'dependency') {
+        // Entity-to-entity or entity-to-external dependencies
+        // Always highlight these when the entity is selected
+        if (isOut || isIn) return true;
     }
     return false;
 }
@@ -349,10 +366,10 @@ const defs = svg.append("defs");
 defs.append("marker")
     .attr("id", "arrow-module-module")
     .attr("viewBox", "0 -5 10 10")
-    .attr("refX", 25)
+    .attr("refX", 18)
     .attr("refY", 0)
-    .attr("markerWidth", 8)
-    .attr("markerHeight", 8)
+    .attr("markerWidth", 6)
+    .attr("markerHeight", 6)
     .attr("orient", "auto")
     .append("path")
     .attr("fill", "#ff9800")
@@ -488,8 +505,8 @@ document.getElementById('size-by-code').addEventListener('change', function() {
 // Display filter state
 const displayFilters = {
     showModules: true,
-    showClasses: true,
-    showFunctions: true,
+    showClasses: false,
+    showFunctions: false,
     showExternal: true,
     showLinkModule: true,
     showLinkEntity: true,
@@ -500,30 +517,37 @@ const displayFilters = {
 document.getElementById('show-modules').addEventListener('change', function() {
     displayFilters.showModules = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-classes').addEventListener('change', function() {
     displayFilters.showClasses = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-functions').addEventListener('change', function() {
     displayFilters.showFunctions = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-external').addEventListener('change', function() {
     displayFilters.showExternal = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-link-module').addEventListener('change', function() {
     displayFilters.showLinkModule = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-link-entity').addEventListener('change', function() {
     displayFilters.showLinkEntity = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-link-dependency').addEventListener('change', function() {
     displayFilters.showLinkDependency = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('max-highlight-font').addEventListener('input', function() {
     maxHighlightFontSize = parseInt(this.value) || 32;
@@ -534,6 +558,15 @@ document.getElementById('icon-wire-scale').addEventListener('input', function() 
     iconWireScaleFactor = parseFloat(this.value) || 1.0;
     // Update icon and wire sizes immediately
     updateIconWireSizes(currentScale);
+});
+document.getElementById('highlight-focus-mode').addEventListener('change', function() {
+    highlightFocusMode = this.checked;
+    if (currentHighlightedNode) {
+        highlightNode(currentHighlightedNode);
+    } else if (!this.checked) {
+        // When turning off focus mode without active highlight, restore display filters
+        updateDisplayFilters();
+    }
 });
 document.getElementById('highlight-link-mm-out').addEventListener('change', function() {
     highlightLinkFilters.mmOut = this.checked;
@@ -625,6 +658,9 @@ const labels = g.append("g")
 
 // Initialize font sizes
 updateFontSizes(1);
+
+// Apply initial display filters
+updateDisplayFilters();
 
 // Node interactions
 node.on("mouseover", function(event, d) {
@@ -832,17 +868,83 @@ const searchInput = document.getElementById('searchInput');
 const searchClear = document.getElementById('searchClear');
 const autocompleteList = document.getElementById('autocompleteList');
 
+// Navigation history
+let highlightHistory = [];
+let historyIndex = -1;
+let isNavigating = false; // Flag to prevent adding to history during navigation
+
+const backButton = document.getElementById('backButton');
+const forwardButton = document.getElementById('forwardButton');
+
+function updateNavigationButtons() {
+    backButton.disabled = historyIndex <= 0;
+    forwardButton.disabled = historyIndex >= highlightHistory.length - 1;
+}
+
+function addToHistory(nodeId) {
+    if (isNavigating) return; // Don't add to history during back/forward navigation
+    
+    // Remove any forward history when a new node is selected
+    highlightHistory = highlightHistory.slice(0, historyIndex + 1);
+    
+    // Add new node (avoid duplicates of the same node in a row)
+    if (highlightHistory[historyIndex] !== nodeId) {
+        highlightHistory.push(nodeId);
+        historyIndex++;
+    }
+    
+    updateNavigationButtons();
+}
+
+function navigateBack() {
+    if (historyIndex > 0) {
+        isNavigating = true;
+        historyIndex--;
+        const nodeId = highlightHistory[historyIndex];
+        highlightNode(nodeId);
+        isNavigating = false;
+        updateNavigationButtons();
+    }
+}
+
+function navigateForward() {
+    if (historyIndex < highlightHistory.length - 1) {
+        isNavigating = true;
+        historyIndex++;
+        const nodeId = highlightHistory[historyIndex];
+        highlightNode(nodeId);
+        isNavigating = false;
+        updateNavigationButtons();
+    }
+}
+
+backButton.addEventListener('click', navigateBack);
+forwardButton.addEventListener('click', navigateForward);
+
+// Keyboard shortcuts for navigation
+document.addEventListener('keydown', (e) => {
+    if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigateBack();
+    } else if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigateForward();
+    }
+});
+
+
 let selectedAutocompleteIndex = -1;
 let currentHighlightedNode = null;
-let maxHighlightFontSize = 32;
+let maxHighlightFontSize = 256;
 let iconWireScaleFactor = 1.0;
 let currentScale = 1;
 let filteredNodes = [];
+let highlightFocusMode = false;
 let highlightLinkFilters = {
     mmOut: true,
-    mmIn: true,
+    mmIn: false,
     meOut: true,
-    meIn: true
+    meIn: false
 };
 let showHighlightedPath = true;
 let pathSubfolderLevels = 0;
@@ -853,7 +955,15 @@ const searchIndex = graphData.nodes.map(n => ({
     label: n.label || n.id,
     type: n.type,
     parent: n.parent || null,
-    searchText: ((n.label || n.id) + ' ' + (n.parent || '')).toLowerCase()
+    fullPath: n.fullPath || null,
+    // For modules, include both 'modulename' and 'modulename.py' as separate searchable terms, plus imports
+    // For entities, search by label and parent
+    searchText: n.type === 'module' 
+        ? (n.label || n.id).toLowerCase() + ' ' + 
+          (n.label || n.id).toLowerCase() + '.py ' + 
+          (n.fullPath || '').toLowerCase() + ' ' +
+          ((n.imports || []).join(' ')).toLowerCase()
+        : ((n.label || n.id) + ' ' + (n.parent || '')).toLowerCase()
 }));
 
 // Get connected nodes for a given node
@@ -924,7 +1034,19 @@ function zoomToFitNodes(nodeIds) {
 
 // Highlight a node and its connections
 function highlightNode(nodeId) {
-    const connectedLinks = graphData.links.filter(d => isLinkHighlighted(d, nodeId));
+    // Add to history (unless we're navigating)
+    addToHistory(nodeId);
+    
+    // In focus mode, build chain from ALL dependency links
+    // In normal mode, use filtered links based on highlight settings
+    const connectedLinks = highlightFocusMode 
+        ? graphData.links.filter(d => {
+            const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+            const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+            return sourceId === nodeId || targetId === nodeId;
+          })
+        : graphData.links.filter(d => isLinkHighlighted(d, nodeId));
+    
     const connectedNodes = new Set();
     connectedLinks.forEach(l => {
         const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
@@ -934,18 +1056,137 @@ function highlightNode(nodeId) {
     });
     currentHighlightedNode = nodeId;
 
-    // Update nodes
-    node.classed('dimmed', d => d.id !== nodeId && !connectedNodes.has(d.id))
-        .classed('highlighted', d => connectedNodes.has(d.id) && d.id !== nodeId)
-        .classed('highlighted-main', d => d.id === nodeId);
+    if (highlightFocusMode) {
+        // Focus mode: show all chain nodes (ignore filters), hide background nodes completely
+        node.each(function(d) {
+            const el = d3.select(this);
+            if (d.id === nodeId) {
+                el.classed('dimmed', false)
+                  .classed('highlighted', false)
+                  .classed('highlighted-main', true)
+                  .classed('node-hidden', false);
+            } else if (connectedNodes.has(d.id)) {
+                // Check if this node should be highlighted or dimmed
+                const shouldHighlight = connectedLinks.some(l => {
+                    const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+                    const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+                    return (sourceId === d.id || targetId === d.id) && isLinkHighlighted(l, nodeId);
+                });
+                el.classed('dimmed', !shouldHighlight)
+                  .classed('highlighted', shouldHighlight)
+                  .classed('highlighted-main', false)
+                  .classed('node-hidden', false);
+            } else {
+                // Background nodes - completely hidden
+                el.classed('dimmed', false)
+                  .classed('highlighted', false)
+                  .classed('highlighted-main', false)
+                  .classed('node-hidden', true);
+            }
+        });
+    } else {
+        // Normal mode: respect filters, only dim background
+        // First, clear node-hidden from all nodes to undo focus mode
+        node.classed('node-hidden', d => isNodeFilteredOut(d) || isNodeHidden(d));
+        
+        // Then apply highlight classes only to visible nodes
+        node.filter(d => !isNodeFilteredOut(d) && !isNodeHidden(d))
+            .classed('dimmed', d => d.id !== nodeId && !connectedNodes.has(d.id))
+            .classed('highlighted', d => connectedNodes.has(d.id) && d.id !== nodeId)
+            .classed('highlighted-main', d => d.id === nodeId);
+    }
 
     // Update links
-    link.classed('dimmed', d => !isLinkHighlighted(d, nodeId))
-        .classed('highlighted', d => isLinkHighlighted(d, nodeId));
+    if (highlightFocusMode) {
+        // Focus mode: show only links between chain nodes
+        link.each(function(d) {
+            const el = d3.select(this);
+            const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+            const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+            const sourceInChain = sourceId === nodeId || connectedNodes.has(sourceId);
+            const targetInChain = targetId === nodeId || connectedNodes.has(targetId);
+            
+            if (sourceInChain && targetInChain) {
+                // Link is part of the chain
+                const isHighlighted = isLinkHighlighted(d, nodeId);
+                el.classed('dimmed', !isHighlighted)
+                  .classed('highlighted', isHighlighted)
+                  .classed('link-hidden', false)
+                  .style('stroke-opacity', isHighlighted ? 1 : 0.4);
+            } else {
+                // Background link - completely hidden
+                el.classed('dimmed', false)
+                  .classed('highlighted', false)
+                  .classed('link-hidden', true)
+                  .style('stroke-opacity', null);
+            }
+        });
+    } else {
+        // Normal mode: filter out links connected to hidden nodes
+        // First, clear any inline stroke-opacity styles from focus mode
+        link.style('stroke-opacity', null);
+        
+        link.filter(d => {
+                // First check if the link type is filtered out
+                if (isLinkFilteredOut(d)) return false;
+                
+                const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+                const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+                const sourceNode = graphData.nodes.find(n => n.id === sourceId);
+                const targetNode = graphData.nodes.find(n => n.id === targetId);
+                const sourceVisible = sourceNode && !isNodeFilteredOut(sourceNode) && !isNodeHidden(sourceNode);
+                const targetVisible = targetNode && !isNodeFilteredOut(targetNode) && !isNodeHidden(targetNode);
+                return sourceVisible && targetVisible;
+            })
+            .classed('dimmed', d => !isLinkHighlighted(d, nodeId))
+            .classed('highlighted', d => isLinkHighlighted(d, nodeId));
+        
+        // Reapply link-hidden to ALL links to ensure hidden links stay hidden (normal mode only)
+        link.classed('link-hidden', d => {
+            if (isLinkFilteredOut(d)) return true;
+            const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+            const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+            const sourceNode = graphData.nodes.find(n => n.id === sourceId);
+            const targetNode = graphData.nodes.find(n => n.id === targetId);
+            if (sourceNode && isNodeFilteredOut(sourceNode)) return true;
+            if (targetNode && isNodeFilteredOut(targetNode)) return true;
+            if (d.type === 'module-module') return false;
+            if (sourceNode && isNodeHidden(sourceNode)) return true;
+            if (targetNode && isNodeHidden(targetNode)) return true;
+            if (d.type === 'module-entity' && collapsedNodes.has(sourceId)) return true;
+            if (d.type === 'dependency' && collapsedNodes.has(sourceId)) return true;
+            return false;
+        });
+    }
 
     // Update labels
-    labels.classed('dimmed', d => d.id !== nodeId && !connectedNodes.has(d.id))
-        .classed('highlighted-label', d => d.id === nodeId || connectedNodes.has(d.id));
+    if (highlightFocusMode) {
+        // Focus mode: show all chain labels (ignore filters), hide background labels
+        labels.each(function(d) {
+            const el = d3.select(this);
+            const nodeEl = node.filter(n => n.id === d.id);
+            const isNodeDimmed = nodeEl.classed('dimmed');
+            
+            if (d.id === nodeId || connectedNodes.has(d.id)) {
+                el.classed('dimmed', isNodeDimmed)
+                  .classed('highlighted-label', !isNodeDimmed)
+                  .classed('label-hidden', false);
+            } else {
+                el.classed('dimmed', false)
+                  .classed('highlighted-label', false)
+                  .classed('label-hidden', true);
+            }
+        });
+    } else {
+        // Normal mode: respect filters
+        // First, clear label-hidden from all labels and reapply based on filters
+        labels.classed('label-hidden', d => isNodeFilteredOut(d) || isNodeHidden(d));
+        
+        // Then apply highlight classes only to visible labels
+        labels.filter(d => !isNodeFilteredOut(d) && !isNodeHidden(d))
+            .classed('dimmed', d => d.id !== nodeId && !connectedNodes.has(d.id))
+            .classed('highlighted-label', d => d.id === nodeId || connectedNodes.has(d.id));
+    }
 
     // Zoom to fit all connected nodes
     zoomToFitNodes(connectedNodes);
@@ -957,15 +1198,26 @@ function highlightNode(nodeId) {
 function clearHighlight() {
     currentHighlightedNode = null;
 
+    // Clear highlight classes from all nodes and restore filter state
     node.classed('dimmed', false)
         .classed('highlighted', false)
         .classed('highlighted-main', false);
+    
+    // Restore node-hidden based on filters
+    node.classed('node-hidden', d => isNodeFilteredOut(d) || isNodeHidden(d));
 
     link.classed('dimmed', false)
         .classed('highlighted', false);
 
+    // Clear highlight classes from all labels and restore filter state
     labels.classed('dimmed', false)
         .classed('highlighted-label', false);
+    
+    // Restore label-hidden based on filters
+    labels.classed('label-hidden', d => isNodeFilteredOut(d) || isNodeHidden(d));
+    
+    // Restore display filters
+    updateDisplayFilters();
 
     searchInput.value = '';
     searchClear.classList.remove('visible');
@@ -978,9 +1230,36 @@ function clearHighlight() {
 function filterNodes(query) {
     if (!query) return [];
     const lowerQuery = query.toLowerCase();
-    return searchIndex
-        .filter(n => n.searchText.includes(lowerQuery))
-        .slice(0, 10); // Limit to 10 results
+    const results = searchIndex.filter(n => n.searchText.includes(lowerQuery));
+    
+    // Sort results: prioritize exact label matches, then label starts with query, then path matches
+    results.sort((a, b) => {
+        const aLabel = (a.label || a.id).toLowerCase();
+        const bLabel = (b.label || b.id).toLowerCase();
+        const aLabelWithPy = aLabel + '.py';
+        const bLabelWithPy = bLabel + '.py';
+        
+        // Exact matches come first
+        if (aLabel === lowerQuery || aLabelWithPy === lowerQuery) return -1;
+        if (bLabel === lowerQuery || bLabelWithPy === lowerQuery) return 1;
+        
+        // Label starts with query comes next
+        const aStarts = aLabel.startsWith(lowerQuery) || aLabelWithPy.startsWith(lowerQuery);
+        const bStarts = bLabel.startsWith(lowerQuery) || bLabelWithPy.startsWith(lowerQuery);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        
+        // Label contains query comes before path contains query
+        const aLabelContains = aLabel.includes(lowerQuery) || aLabelWithPy.includes(lowerQuery);
+        const bLabelContains = bLabel.includes(lowerQuery) || bLabelWithPy.includes(lowerQuery);
+        if (aLabelContains && !bLabelContains) return -1;
+        if (!aLabelContains && bLabelContains) return 1;
+        
+        // Otherwise alphabetical
+        return aLabel.localeCompare(bLabel);
+    });
+    
+    return results.slice(0, 50); // Limit to 50 results
 }
 
 // Render autocomplete list
@@ -993,13 +1272,20 @@ function renderAutocomplete(results) {
     filteredNodes = results;
     selectedAutocompleteIndex = -1;
 
-    autocompleteList.innerHTML = results.map((n, i) => `
-        <div class="autocomplete-item" data-index="${i}" data-id="${n.id}">
-            <span class="node-type ${n.type}">${n.type}</span>
-            <span class="node-name">${n.label}</span>
-            ${n.parent ? `<span class="node-parent">${n.parent}</span>` : ''}
-        </div>
-    `).join('');
+    autocompleteList.innerHTML = results.map((n, i) => {
+        // For modules, show fullPath; for entities, show parent
+        const pathInfo = n.type === 'module' && n.fullPath 
+            ? `<span class="node-parent">${n.fullPath}</span>`
+            : n.parent ? `<span class="node-parent">${n.parent}</span>` : '';
+        
+        return `
+            <div class="autocomplete-item" data-index="${i}" data-id="${n.id}">
+                <span class="node-type ${n.type}">${n.type}</span>
+                <span class="node-name">${n.label}</span>
+                ${pathInfo}
+            </div>
+        `;
+    }).join('');
 
     autocompleteList.classList.add('visible');
 

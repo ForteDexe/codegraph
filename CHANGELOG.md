@@ -5,6 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-01-28
+
+### Added
+
+**Focus Mode**
+- New "Focus Mode" checkbox in Highlight Settings panel
+- When enabled, hides all background (non-highlighted) nodes and links
+- Shows entire dependency chain regardless of display filters
+- Improves visibility when analyzing specific code paths
+
+**Navigation History**
+- Added back/forward navigation buttons with browser-style controls
+- Keyboard shortcuts: Alt+Left (back), Alt+Right (forward)
+- Tracks entity clicks for easy navigation through code exploration
+- Button states update based on history availability
+
+**External Import Nodes**
+- External imports (e.g., `os`, `sys`, `numpy`) now appear as nodes in the graph
+- Distinguished with special styling and external type
+- Helps visualize all project dependencies including standard library and third-party packages
+
+### Changed
+
+**Arrow Direction and Visualization**
+- Reversed arrow directions to better represent code flow
+- Module imports: arrows now point FROM importer TO imported module
+- Entity dependencies: arrows point FROM entity TO its dependencies
+- Improved arrow scaling: scales consistently with zoom level and icon size
+- Unified arrow head sizes and stroke widths across all link types
+- Dynamic arrow scaling in highlight mode with configurable maximum (18.75x scale factor)
+
+**Keyword Filtering Enhancements**
+- Keyword search now filters at entity level in addition to module level
+- Shows full dependency chains when entities match keywords
+- Handles import aliases correctly (e.g., `import pandas as pd`)
+- Improves search accuracy for finding specific functions/classes
+
+**UI Defaults and Behavior**
+- Default font size increased to 256 for better readability
+- Display panel now expanded by default
+- Classes and Functions checkboxes unchecked by default (show only modules)
+- Focus mode properly dims labels and icons of non-highlighted nodes
+- Improved link opacity handling in highlight and focus modes
+
+### Fixed
+
+**Display Filter Issues**
+- Fixed Classes/Functions nodes appearing in highlight mode when filters disabled
+- Corrected entity visibility logic to respect display panel settings
+- Entity links now properly hidden when corresponding filters are off
+
+**Import Handling**
+- Fixed import statement extraction from AST
+- Corrected handling of multi-line imports and comma-separated imports
+- Fixed alias imports (e.g., `import x as y`) appearing in tooltips
+
+**Highlight Mode**
+- Fixed entity-to-entity click highlighting for dependency relationships
+- Corrected link dimming in focus mode
+- Fixed label and icon dimming to match node highlight state
+
+**Arrow Scaling Consistency**
+- Fixed inconsistent arrow sizes at different zoom levels
+- Unified base stroke widths (2px for all link types)
+- Arrows now scale proportionally with icons in highlight mode
+- Applied proper clamping to prevent excessive arrow sizes
+
+## [1.4.0] - 2026-01-26
+
+### Fixed
+
+**Duplicate Filename Support**
+- Fixed critical issue where files with the same basename in different directories would collide
+- Now uses full relative paths as unique identifiers instead of just filenames
+- Module node IDs are now path-based (e.g., `src/utils`, `tests/utils`) without `.py` extension
+- Entity node IDs use format `path/module:entity_name` (e.g., `src/utils:helper`)
+- Module labels still display basenames for readability, with full paths in tooltips
+- Search box now shows file paths for modules to distinguish duplicates
+- CSV export shows basenames with `.py` extension for backward compatibility
+- Added comprehensive test suite for duplicate filename scenarios
+
+### Changed
+
+- Internal node identifiers now use relative paths for uniqueness
+- Module identification system refactored throughout core, parser, and visualization layers
+- Import resolution improved to correctly match dependencies with path-based identifiers
+
 ## [1.2.0] - 2026-01-18
 
 ### Added
