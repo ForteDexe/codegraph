@@ -55,20 +55,23 @@ body {
 }
 .link-module-module {
     stroke: #ff9800;
-    stroke-width: 3px;
+    stroke-width: 2px;
     stroke-opacity: 0.8;
 }
 .link-module-entity {
     stroke: #009c2c;
-    stroke-width: 1.5px;
+    stroke-width: 2px;
     stroke-dasharray: 5, 3;
 }
 .link-dependency {
     stroke: #d94a4a;
-    stroke-width: 1.5px;
+    stroke-width: 2px;
+}
+.link.highlighted.link-dependency {
+    stroke-opacity: 1 !important;
 }
 .link-hidden {
-    opacity: 0;
+    opacity: 0 !important;
 }
 .label {
     font-size: 11px;
@@ -98,6 +101,9 @@ body {
     transition: opacity 0.2s;
     border: 1px solid #555;
     max-width: 300px;
+    word-wrap: break-word;
+    word-break: break-all;
+    white-space: normal;
 }
 .tooltip .links-info {
     margin-top: 8px;
@@ -458,9 +464,32 @@ body {
 .search-box {
     position: relative;
     width: 100%;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.nav-button {
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #444;
+    border-radius: 6px;
+    color: #fff;
+    padding: 10px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    flex-shrink: 0;
+}
+.nav-button:hover:not(:disabled) {
+    border-color: #70b8ff;
+    background: rgba(112, 184, 255, 0.1);
+}
+.nav-button:disabled {
+    color: #555;
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 .search-input {
-    width: 100%;
+    flex: 1;
     padding: 12px 40px 12px 16px;
     font-size: 14px;
     border: 2px solid #444;
@@ -556,13 +585,22 @@ body {
 }
 /* Dimmed state for non-highlighted nodes/links */
 .node.dimmed {
-    opacity: 0.15;
+    opacity: 0.2;
+}
+/* Hidden nodes must always be hidden, even if dimmed */
+.node.node-hidden {
+    opacity: 0 !important;
+    pointer-events: none;
 }
 .link.dimmed {
-    opacity: 0.05;
+    opacity: 0.4;
 }
 .label.dimmed {
     opacity: 0.1;
+}
+/* Hidden labels must always be hidden, even if dimmed */
+.label.label-hidden {
+    opacity: 0 !important;
 }
 /* Highlighted state */
 .node.highlighted {
@@ -572,6 +610,6 @@ body {
     filter: brightness(1.5) drop-shadow(0 0 15px rgba(112, 184, 255, 0.8));
 }
 .link.highlighted {
-    stroke-opacity: 1;
+    stroke-opacity: 1 !important;
     filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
 }

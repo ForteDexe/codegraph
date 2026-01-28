@@ -63,20 +63,23 @@ body {
 }
 .link-module-module {
     stroke: #ff9800;
-    stroke-width: 3px;
+    stroke-width: 2px;
     stroke-opacity: 0.8;
 }
 .link-module-entity {
     stroke: #009c2c;
-    stroke-width: 1.5px;
+    stroke-width: 2px;
     stroke-dasharray: 5, 3;
 }
 .link-dependency {
     stroke: #d94a4a;
-    stroke-width: 1.5px;
+    stroke-width: 2px;
+}
+.link.highlighted.link-dependency {
+    stroke-opacity: 1 !important;
 }
 .link-hidden {
-    opacity: 0;
+    opacity: 0 !important;
 }
 .label {
     font-size: 11px;
@@ -106,6 +109,9 @@ body {
     transition: opacity 0.2s;
     border: 1px solid #555;
     max-width: 300px;
+    word-wrap: break-word;
+    word-break: break-all;
+    white-space: normal;
 }
 .tooltip .links-info {
     margin-top: 8px;
@@ -466,9 +472,32 @@ body {
 .search-box {
     position: relative;
     width: 100%;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.nav-button {
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #444;
+    border-radius: 6px;
+    color: #fff;
+    padding: 10px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    flex-shrink: 0;
+}
+.nav-button:hover:not(:disabled) {
+    border-color: #70b8ff;
+    background: rgba(112, 184, 255, 0.1);
+}
+.nav-button:disabled {
+    color: #555;
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 .search-input {
-    width: 100%;
+    flex: 1;
     padding: 12px 40px 12px 16px;
     font-size: 14px;
     border: 2px solid #444;
@@ -564,13 +593,22 @@ body {
 }
 /* Dimmed state for non-highlighted nodes/links */
 .node.dimmed {
-    opacity: 0.15;
+    opacity: 0.2;
+}
+/* Hidden nodes must always be hidden, even if dimmed */
+.node.node-hidden {
+    opacity: 0 !important;
+    pointer-events: none;
 }
 .link.dimmed {
-    opacity: 0.05;
+    opacity: 0.4;
 }
 .label.dimmed {
     opacity: 0.1;
+}
+/* Hidden labels must always be hidden, even if dimmed */
+.label.label-hidden {
+    opacity: 0 !important;
 }
 /* Highlighted state */
 .node.highlighted {
@@ -580,7 +618,7 @@ body {
     filter: brightness(1.5) drop-shadow(0 0 15px rgba(112, 184, 255, 0.8));
 }
 .link.highlighted {
-    stroke-opacity: 1;
+    stroke-opacity: 1 !important;
     filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
 }
 
@@ -593,6 +631,8 @@ body {
     <!-- Search box -->
     <div class="search-container">
         <div class="search-box">
+            <button class="nav-button" id="backButton" title="Back (Alt+Left)" disabled>◀</button>
+            <button class="nav-button" id="forwardButton" title="Forward (Alt+Right)" disabled>▶</button>
             <input type="text" class="search-input" id="searchInput" placeholder="Search nodes... (Ctrl+F)" autocomplete="off">
             <button class="search-clear" id="searchClear">&times;</button>
             <div class="autocomplete-list" id="autocompleteList"></div>
@@ -705,22 +745,22 @@ body {
             <ul id="massive-list"></ul>
         </div>
     </div>
-    <div class="panel size-toggle collapsed" id="size-toggle-panel">
+    <div class="panel size-toggle" id="size-toggle-panel">
         <div class="panel-header">
             <h4>Display</h4>
-            <button class="panel-toggle" title="Expand">+</button>
+            <button class="panel-toggle" title="Collapse">-</button>
         </div>
         <div class="panel-content">
             <label>
-                <input type="checkbox" id="size-by-code" checked>
+                <input type="checkbox" id="size-by-code">
                 Size by lines of code
             </label>
             <div class="display-section">
                 <h5>Show nodes</h5>
-                <label><input type="checkbox" id="show-modules" checked> Modules</label>
-                <label><input type="checkbox" id="show-classes" checked> Classes</label>
-                <label><input type="checkbox" id="show-functions" checked> Functions</label>
                 <label><input type="checkbox" id="show-external" checked> External</label>
+                <label><input type="checkbox" id="show-modules" checked> Modules</label>
+                <label><input type="checkbox" id="show-classes"> Classes</label>
+                <label><input type="checkbox" id="show-functions"> Functions</label>
             </div>
             <div class="display-section">
                 <h5>Show links</h5>
@@ -729,8 +769,20 @@ body {
                 <label><input type="checkbox" id="show-link-dependency" checked> Dependencies</label>
             </div>
             <div class="display-section">
-                <h5>Font Settings</h5>
-                <label>Max highlighted font size: <input type="number" id="max-highlight-font" value="32" min="16" max="100"></label>
+                <h5>Highlight Settings</h5>
+                <label>
+                    <input type="checkbox" id="highlight-focus-mode">
+                    Focus mode (hide background, show all chain nodes)
+                </label>
+                <label>Max highlighted font size: <input type="number" id="max-highlight-font" value="256" min="16" max="512"></label>
+                <label>Icon and wire scale factor: <input type="number" id="icon-wire-scale" value="1.0" min="0.1" max="5" step="0.1"></label>
+                <label>Subfolder levels: <input type="number" id="path-subfolder-levels" value="0" min="0" max="10"></label>
+                <div style="margin-top: 8px;">
+                    <label><input type="checkbox" id="highlight-link-mm-out" checked> Module → Module</label>
+                    <label><input type="checkbox" id="highlight-link-mm-in"> Module ← Module</label>
+                    <label><input type="checkbox" id="highlight-link-me-out" checked> Module → Entity</label>
+                    <label><input type="checkbox" id="highlight-link-me-in"> Module ← Entity</label>
+                </div>
             </div>
         </div>
     </div>
@@ -739,1418 +791,2396 @@ body {
         const graphData = {
   "nodes": [
     {
-      "id": "core.py",
+      "id": "codegraph/core",
+      "label": "core",
       "type": "module",
       "collapsed": false,
-      "fullPath": "codegraph\\codegraph\\core.py",
-      "lines": 347
+      "fullPath": "codegraph/core.py",
+      "lines": 601,
+      "imports": [
+        "codegraph",
+        "logging",
+        "codegraph",
+        "typing",
+        "collections",
+        "typing",
+        "collections",
+        "typing",
+        "codegraph",
+        "codegraph",
+        "codegraph",
+        "os",
+        "argparse",
+        "typing",
+        "typing",
+        "typing",
+        "codegraph",
+        "codegraph"
+      ]
     },
     {
-      "id": "core.py:parse_code_file",
+      "id": "codegraph/core:parse_code_file",
       "label": "parse_code_file",
       "type": "entity",
-      "parent": "core.py",
+      "parent": "codegraph/core",
       "lines": 5,
       "entityType": "function"
     },
     {
-      "id": "core.py:CodeGraph",
+      "id": "codegraph/core:CodeGraph",
       "label": "CodeGraph",
       "type": "entity",
-      "parent": "core.py",
-      "lines": 121,
+      "parent": "codegraph/core",
+      "lines": 341,
       "entityType": "class"
     },
     {
-      "id": "core.py:collect_entities_usage_in_modules",
+      "id": "codegraph/core:collect_entities_usage_in_modules",
       "label": "collect_entities_usage_in_modules",
       "type": "entity",
-      "parent": "core.py",
+      "parent": "codegraph/core",
       "lines": 32,
       "entityType": "function"
     },
     {
-      "id": "core.py:get_code_objects",
+      "id": "codegraph/core:get_code_objects",
       "label": "get_code_objects",
       "type": "entity",
-      "parent": "core.py",
-      "lines": 11,
-      "entityType": "function"
-    },
-    {
-      "id": "core.py:get_imports_and_entities_lines",
-      "label": "get_imports_and_entities_lines",
-      "type": "entity",
-      "parent": "core.py",
-      "lines": 65,
-      "entityType": "function"
-    },
-    {
-      "id": "core.py:search_entities_from_list_in_code",
-      "label": "search_entities_from_list_in_code",
-      "type": "entity",
-      "parent": "core.py",
-      "lines": 8,
-      "entityType": "function"
-    },
-    {
-      "id": "core.py:search_entities_from_module_in_code",
-      "label": "search_entities_from_module_in_code",
-      "type": "entity",
-      "parent": "core.py",
-      "lines": 20,
-      "entityType": "function"
-    },
-    {
-      "id": "core.py:_",
-      "label": "_",
-      "type": "entity",
-      "parent": "core.py",
-      "lines": 0,
-      "entityType": "function"
-    },
-    {
-      "id": "core.py:read_file_content",
-      "label": "read_file_content",
-      "type": "entity",
-      "parent": "core.py",
-      "lines": 5,
-      "entityType": "function"
-    },
-    {
-      "id": "core.py:get_module_name",
-      "label": "get_module_name",
-      "type": "entity",
-      "parent": "core.py",
-      "lines": 3,
-      "entityType": "function"
-    },
-    {
-      "id": "core.py:module_name_in_imports",
-      "label": "module_name_in_imports",
-      "type": "entity",
-      "parent": "core.py",
-      "lines": 5,
-      "entityType": "function"
-    },
-    {
-      "id": "core.py:populate_free_nodes",
-      "label": "populate_free_nodes",
-      "type": "entity",
-      "parent": "core.py",
-      "lines": 57,
-      "entityType": "function"
-    },
-    {
-      "id": "core.py:search_entity_usage",
-      "label": "search_entity_usage",
-      "type": "entity",
-      "parent": "core.py",
-      "lines": 15,
-      "entityType": "function"
-    },
-    {
-      "id": "main.py",
-      "type": "module",
-      "collapsed": false,
-      "fullPath": "codegraph\\codegraph\\main.py",
-      "lines": 43
-    },
-    {
-      "id": "main.py:main",
-      "label": "main",
-      "type": "entity",
-      "parent": "main.py",
-      "lines": 27,
-      "entityType": "function"
-    },
-    {
-      "id": "main.py:_",
-      "label": "_",
-      "type": "entity",
-      "parent": "main.py",
-      "lines": 0,
-      "entityType": "function"
-    },
-    {
-      "id": "main.py:cli",
-      "label": "cli",
-      "type": "entity",
-      "parent": "main.py",
-      "lines": 16,
-      "entityType": "function"
-    },
-    {
-      "id": "parser.py",
-      "type": "module",
-      "collapsed": false,
-      "fullPath": "codegraph\\codegraph\\parser.py",
-      "lines": 283
-    },
-    {
-      "id": "parser.py:Function",
-      "label": "Function",
-      "type": "entity",
-      "parent": "parser.py",
-      "lines": 7,
-      "entityType": "class"
-    },
-    {
-      "id": "parser.py:AsyncFunction",
-      "label": "AsyncFunction",
-      "type": "entity",
-      "parent": "parser.py",
-      "lines": 7,
-      "entityType": "class"
-    },
-    {
-      "id": "parser.py:Class",
-      "label": "Class",
-      "type": "entity",
-      "parent": "parser.py",
-      "lines": 16,
-      "entityType": "class"
-    },
-    {
-      "id": "parser.py:_nest_function",
-      "label": "_nest_function",
-      "type": "entity",
-      "parent": "parser.py",
-      "lines": 10,
-      "entityType": "function"
-    },
-    {
-      "id": "parser.py:create_objects_array",
-      "label": "create_objects_array",
-      "type": "entity",
-      "parent": "parser.py",
-      "lines": 206,
-      "entityType": "function"
-    },
-    {
-      "id": "parser.py:_nest_class",
-      "label": "_nest_class",
-      "type": "entity",
-      "parent": "parser.py",
-      "lines": 5,
-      "entityType": "function"
-    },
-    {
-      "id": "parser.py:_Object",
-      "label": "_Object",
-      "type": "entity",
-      "parent": "parser.py",
-      "lines": 22,
-      "entityType": "class"
-    },
-    {
-      "id": "parser.py:Import",
-      "label": "Import",
-      "type": "entity",
-      "parent": "parser.py",
-      "lines": 10,
-      "entityType": "class"
-    },
-    {
-      "id": "utils.py",
-      "type": "module",
-      "collapsed": false,
-      "fullPath": "codegraph\\codegraph\\utils.py",
-      "lines": 25
-    },
-    {
-      "id": "utils.py:get_python_paths_list",
-      "label": "get_python_paths_list",
-      "type": "entity",
-      "parent": "utils.py",
-      "lines": 25,
-      "entityType": "function"
-    },
-    {
-      "id": "vizualyzer.py",
-      "type": "module",
-      "collapsed": false,
-      "fullPath": "codegraph\\codegraph\\vizualyzer.py",
-      "lines": 392
-    },
-    {
-      "id": "vizualyzer.py:draw_graph_matplotlib",
-      "label": "draw_graph_matplotlib",
-      "type": "entity",
-      "parent": "vizualyzer.py",
-      "lines": 86,
-      "entityType": "function"
-    },
-    {
-      "id": "vizualyzer.py:_read_template_file",
-      "label": "_read_template_file",
-      "type": "entity",
-      "parent": "vizualyzer.py",
-      "lines": 7,
-      "entityType": "function"
-    },
-    {
-      "id": "vizualyzer.py:get_d3_html_template",
-      "label": "get_d3_html_template",
-      "type": "entity",
-      "parent": "vizualyzer.py",
-      "lines": 10,
-      "entityType": "function"
-    },
-    {
-      "id": "vizualyzer.py:draw_graph",
-      "label": "draw_graph",
-      "type": "entity",
-      "parent": "vizualyzer.py",
-      "lines": 26,
-      "entityType": "function"
-    },
-    {
-      "id": "vizualyzer.py:export_to_csv",
-      "label": "export_to_csv",
-      "type": "entity",
-      "parent": "vizualyzer.py",
-      "lines": 83,
-      "entityType": "function"
-    },
-    {
-      "id": "vizualyzer.py:process_module_in_graph",
-      "label": "process_module_in_graph",
-      "type": "entity",
-      "parent": "vizualyzer.py",
-      "lines": 17,
-      "entityType": "function"
-    },
-    {
-      "id": "vizualyzer.py:convert_to_d3_format",
-      "label": "convert_to_d3_format",
-      "type": "entity",
-      "parent": "vizualyzer.py",
-      "lines": 160,
-      "entityType": "function"
-    },
-    {
-      "id": "vizualyzer.py:_get_template_dir",
-      "label": "_get_template_dir",
-      "type": "entity",
-      "parent": "vizualyzer.py",
-      "lines": 3,
-      "entityType": "function"
-    },
-    {
-      "id": "__init__.py",
-      "type": "module",
-      "collapsed": false,
-      "fullPath": "codegraph\\codegraph\\__init__.py",
-      "lines": 0
-    },
-    {
-      "id": "test_codegraph.py",
-      "type": "module",
-      "collapsed": false,
-      "fullPath": "codegraph\\tests\\test_codegraph.py",
-      "lines": 6
-    },
-    {
-      "id": "test_codegraph.py:test_main",
-      "label": "test_main",
-      "type": "entity",
-      "parent": "test_codegraph.py",
-      "lines": 6,
-      "entityType": "function"
-    },
-    {
-      "id": "test_codegraph.py:_",
-      "label": "_",
-      "type": "entity",
-      "parent": "test_codegraph.py",
-      "lines": 0,
-      "entityType": "function"
-    },
-    {
-      "id": "test_graph_generation.py",
-      "type": "module",
-      "collapsed": false,
-      "fullPath": "codegraph\\tests\\test_graph_generation.py",
-      "lines": 499
-    },
-    {
-      "id": "test_graph_generation.py:TestImportParsing",
-      "label": "TestImportParsing",
-      "type": "entity",
-      "parent": "test_graph_generation.py",
-      "lines": 120,
-      "entityType": "class"
-    },
-    {
-      "id": "test_graph_generation.py:TestCodeGraphConnections",
-      "label": "TestCodeGraphConnections",
-      "type": "entity",
-      "parent": "test_graph_generation.py",
-      "lines": 25,
-      "entityType": "class"
-    },
-    {
-      "id": "test_graph_generation.py:TestCodeGraphOnItself",
-      "label": "TestCodeGraphOnItself",
-      "type": "entity",
-      "parent": "test_graph_generation.py",
-      "lines": 58,
-      "entityType": "class"
-    },
-    {
-      "id": "test_graph_generation.py:TestCSVExport",
-      "label": "TestCSVExport",
-      "type": "entity",
-      "parent": "test_graph_generation.py",
-      "lines": 177,
-      "entityType": "class"
-    },
-    {
-      "id": "test_graph_generation.py:_",
-      "label": "_",
-      "type": "entity",
-      "parent": "test_graph_generation.py",
-      "lines": 0,
-      "entityType": "function"
-    },
-    {
-      "id": "test_graph_generation.py:TestD3FormatConversion",
-      "label": "TestD3FormatConversion",
-      "type": "entity",
-      "parent": "test_graph_generation.py",
-      "lines": 119,
-      "entityType": "class"
-    },
-    {
-      "id": "test_package_install.py",
-      "type": "module",
-      "collapsed": false,
-      "fullPath": "codegraph\\tests\\test_package_install.py",
-      "lines": 66
-    },
-    {
-      "id": "test_package_install.py:test_d3_visualization_without_matplotlib",
-      "label": "test_d3_visualization_without_matplotlib",
-      "type": "entity",
-      "parent": "test_package_install.py",
-      "lines": 33,
-      "entityType": "function"
-    },
-    {
-      "id": "test_package_install.py:test_codegraph_on_itself_without_matplotlib",
-      "label": "test_codegraph_on_itself_without_matplotlib",
-      "type": "entity",
-      "parent": "test_package_install.py",
+      "parent": "codegraph/core",
       "lines": 12,
       "entityType": "function"
     },
     {
-      "id": "test_package_install.py:_",
-      "label": "_",
+      "id": "codegraph/core:get_imports_and_entities_lines",
+      "label": "get_imports_and_entities_lines",
       "type": "entity",
-      "parent": "test_package_install.py",
-      "lines": 0,
+      "parent": "codegraph/core",
+      "lines": 77,
       "entityType": "function"
     },
     {
-      "id": "test_package_install.py:test_import_codegraph",
-      "label": "test_import_codegraph",
+      "id": "codegraph/core:search_entities_from_list_in_code",
+      "label": "search_entities_from_list_in_code",
       "type": "entity",
-      "parent": "test_package_install.py",
-      "lines": 4,
-      "entityType": "function"
-    },
-    {
-      "id": "test_package_install.py:test_import_core",
-      "label": "test_import_core",
-      "type": "entity",
-      "parent": "test_package_install.py",
-      "lines": 4,
-      "entityType": "function"
-    },
-    {
-      "id": "test_package_install.py:test_import_vizualyzer",
-      "label": "test_import_vizualyzer",
-      "type": "entity",
-      "parent": "test_package_install.py",
-      "lines": 5,
-      "entityType": "function"
-    },
-    {
-      "id": "test_package_install.py:test_cli_help",
-      "label": "test_cli_help",
-      "type": "entity",
-      "parent": "test_package_install.py",
+      "parent": "codegraph/core",
       "lines": 8,
       "entityType": "function"
     },
     {
-      "id": "test_utils.py",
-      "type": "module",
-      "collapsed": false,
-      "fullPath": "codegraph\\tests\\test_utils.py",
-      "lines": 11
+      "id": "codegraph/core:search_entities_from_module_in_code",
+      "label": "search_entities_from_module_in_code",
+      "type": "entity",
+      "parent": "codegraph/core",
+      "lines": 20,
+      "entityType": "function"
     },
     {
-      "id": "test_utils.py:test_get_python_paths_list_error",
-      "label": "test_get_python_paths_list_error",
+      "id": "codegraph/core:_",
+      "label": "_",
       "type": "entity",
-      "parent": "test_utils.py",
+      "parent": "codegraph/core",
+      "lines": 0,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/core:read_file_content",
+      "label": "read_file_content",
+      "type": "entity",
+      "parent": "codegraph/core",
+      "lines": 10,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/core:get_module_name",
+      "label": "get_module_name",
+      "type": "entity",
+      "parent": "codegraph/core",
+      "lines": 19,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/core:module_name_in_imports",
+      "label": "module_name_in_imports",
+      "type": "entity",
+      "parent": "codegraph/core",
+      "lines": 5,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/core:populate_free_nodes",
+      "label": "populate_free_nodes",
+      "type": "entity",
+      "parent": "codegraph/core",
+      "lines": 57,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/core:search_entity_usage",
+      "label": "search_entity_usage",
+      "type": "entity",
+      "parent": "codegraph/core",
+      "lines": 15,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/main",
+      "label": "main",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "codegraph/main.py",
+      "lines": 47,
+      "imports": [
+        "pprint",
+        "logging",
+        "sys",
+        "codegraph",
+        "argparse",
+        "click",
+        "codegraph",
+        "codegraph"
+      ]
+    },
+    {
+      "id": "codegraph/main:main",
+      "label": "main",
+      "type": "entity",
+      "parent": "codegraph/main",
+      "lines": 31,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/main:_",
+      "label": "_",
+      "type": "entity",
+      "parent": "codegraph/main",
+      "lines": 0,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/main:cli",
+      "label": "cli",
+      "type": "entity",
+      "parent": "codegraph/main",
+      "lines": 16,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/parser",
+      "label": "parser",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "codegraph/parser.py",
+      "lines": 289,
+      "imports": [
+        "token",
+        "tokenize",
+        "typing",
+        "typing",
+        "token",
+        "io",
+        "token",
+        "token"
+      ]
+    },
+    {
+      "id": "codegraph/parser:Function",
+      "label": "Function",
+      "type": "entity",
+      "parent": "codegraph/parser",
+      "lines": 7,
+      "entityType": "class"
+    },
+    {
+      "id": "codegraph/parser:AsyncFunction",
+      "label": "AsyncFunction",
+      "type": "entity",
+      "parent": "codegraph/parser",
+      "lines": 7,
+      "entityType": "class"
+    },
+    {
+      "id": "codegraph/parser:Class",
+      "label": "Class",
+      "type": "entity",
+      "parent": "codegraph/parser",
+      "lines": 16,
+      "entityType": "class"
+    },
+    {
+      "id": "codegraph/parser:_nest_function",
+      "label": "_nest_function",
+      "type": "entity",
+      "parent": "codegraph/parser",
+      "lines": 10,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/parser:create_objects_array",
+      "label": "create_objects_array",
+      "type": "entity",
+      "parent": "codegraph/parser",
+      "lines": 212,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/parser:_nest_class",
+      "label": "_nest_class",
+      "type": "entity",
+      "parent": "codegraph/parser",
+      "lines": 5,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/parser:_Object",
+      "label": "_Object",
+      "type": "entity",
+      "parent": "codegraph/parser",
+      "lines": 22,
+      "entityType": "class"
+    },
+    {
+      "id": "codegraph/parser:Import",
+      "label": "Import",
+      "type": "entity",
+      "parent": "codegraph/parser",
+      "lines": 10,
+      "entityType": "class"
+    },
+    {
+      "id": "codegraph/utils",
+      "label": "utils",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "codegraph/utils.py",
+      "lines": 61,
+      "imports": [
+        "typing",
+        "os",
+        "pathlib",
+        "typing",
+        "glob"
+      ]
+    },
+    {
+      "id": "codegraph/utils:get_relative_path",
+      "label": "get_relative_path",
+      "type": "entity",
+      "parent": "codegraph/utils",
+      "lines": 29,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/utils:get_python_paths_list",
+      "label": "get_python_paths_list",
+      "type": "entity",
+      "parent": "codegraph/utils",
+      "lines": 32,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/vizualyzer",
+      "label": "vizualyzer",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "codegraph/vizualyzer.py",
+      "lines": 491,
+      "imports": [
+        "logging",
+        "json",
+        "typing",
+        "csv",
+        "codegraph",
+        "os",
+        "matplotlib",
+        "networkx",
+        "click",
+        "typing",
+        "typing",
+        "codegraph",
+        "webbrowser"
+      ]
+    },
+    {
+      "id": "codegraph/vizualyzer:draw_graph_matplotlib",
+      "label": "draw_graph_matplotlib",
+      "type": "entity",
+      "parent": "codegraph/vizualyzer",
+      "lines": 93,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/vizualyzer:_read_template_file",
+      "label": "_read_template_file",
+      "type": "entity",
+      "parent": "codegraph/vizualyzer",
+      "lines": 7,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/vizualyzer:get_d3_html_template",
+      "label": "get_d3_html_template",
+      "type": "entity",
+      "parent": "codegraph/vizualyzer",
+      "lines": 10,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/vizualyzer:draw_graph",
+      "label": "draw_graph",
+      "type": "entity",
+      "parent": "codegraph/vizualyzer",
+      "lines": 29,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/vizualyzer:export_to_csv",
+      "label": "export_to_csv",
+      "type": "entity",
+      "parent": "codegraph/vizualyzer",
+      "lines": 90,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/vizualyzer:_",
+      "label": "_",
+      "type": "entity",
+      "parent": "codegraph/vizualyzer",
+      "lines": 0,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/vizualyzer:process_module_in_graph",
+      "label": "process_module_in_graph",
+      "type": "entity",
+      "parent": "codegraph/vizualyzer",
+      "lines": 22,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/vizualyzer:convert_to_d3_format",
+      "label": "convert_to_d3_format",
+      "type": "entity",
+      "parent": "codegraph/vizualyzer",
+      "lines": 237,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/vizualyzer:_get_template_dir",
+      "label": "_get_template_dir",
+      "type": "entity",
+      "parent": "codegraph/vizualyzer",
+      "lines": 3,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph/__init__",
+      "label": "__init__",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "codegraph/__init__.py",
+      "lines": 0,
+      "imports": []
+    },
+    {
+      "id": "tests/test_codegraph",
+      "label": "test_codegraph",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "tests/test_codegraph.py",
+      "lines": 6,
+      "imports": [
+        "codegraph",
+        "argparse",
+        "pathlib"
+      ]
+    },
+    {
+      "id": "tests/test_codegraph:test_main",
+      "label": "test_main",
+      "type": "entity",
+      "parent": "tests/test_codegraph",
       "lines": 6,
       "entityType": "function"
     },
     {
-      "id": "test_utils.py:_",
+      "id": "tests/test_codegraph:_",
       "label": "_",
       "type": "entity",
-      "parent": "test_utils.py",
+      "parent": "tests/test_codegraph",
       "lines": 0,
       "entityType": "function"
     },
     {
-      "id": "test_utils.py:test_get_python_paths_list",
+      "id": "tests/test_graph_generation",
+      "label": "test_graph_generation",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "tests/test_graph_generation.py",
+      "lines": 621,
+      "imports": [
+        "codegraph",
+        "codegraph",
+        "tempfile",
+        "pathlib",
+        "csv",
+        "codegraph",
+        "argparse",
+        "codegraph",
+        "codegraph"
+      ]
+    },
+    {
+      "id": "tests/test_graph_generation:TestCodeGraphConnections",
+      "label": "TestCodeGraphConnections",
+      "type": "entity",
+      "parent": "tests/test_graph_generation",
+      "lines": 25,
+      "entityType": "class"
+    },
+    {
+      "id": "tests/test_graph_generation:TestCodeGraphOnItself",
+      "label": "TestCodeGraphOnItself",
+      "type": "entity",
+      "parent": "tests/test_graph_generation",
+      "lines": 58,
+      "entityType": "class"
+    },
+    {
+      "id": "tests/test_graph_generation:TestCSVExport",
+      "label": "TestCSVExport",
+      "type": "entity",
+      "parent": "tests/test_graph_generation",
+      "lines": 179,
+      "entityType": "class"
+    },
+    {
+      "id": "tests/test_graph_generation:TestDuplicateFilenames",
+      "label": "TestDuplicateFilenames",
+      "type": "entity",
+      "parent": "tests/test_graph_generation",
+      "lines": 119,
+      "entityType": "class"
+    },
+    {
+      "id": "tests/test_graph_generation:TestImportParsing",
+      "label": "TestImportParsing",
+      "type": "entity",
+      "parent": "tests/test_graph_generation",
+      "lines": 120,
+      "entityType": "class"
+    },
+    {
+      "id": "tests/test_graph_generation:_",
+      "label": "_",
+      "type": "entity",
+      "parent": "tests/test_graph_generation",
+      "lines": 0,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_graph_generation:TestD3FormatConversion",
+      "label": "TestD3FormatConversion",
+      "type": "entity",
+      "parent": "tests/test_graph_generation",
+      "lines": 120,
+      "entityType": "class"
+    },
+    {
+      "id": "tests/test_package_install",
+      "label": "test_package_install",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "tests/test_package_install.py",
+      "lines": 66,
+      "imports": [
+        "codegraph",
+        "codegraph",
+        "tempfile",
+        "os",
+        "click",
+        "argparse",
+        "codegraph",
+        "codegraph",
+        "codegraph"
+      ]
+    },
+    {
+      "id": "tests/test_package_install:test_d3_visualization_without_matplotlib",
+      "label": "test_d3_visualization_without_matplotlib",
+      "type": "entity",
+      "parent": "tests/test_package_install",
+      "lines": 33,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_package_install:test_codegraph_on_itself_without_matplotlib",
+      "label": "test_codegraph_on_itself_without_matplotlib",
+      "type": "entity",
+      "parent": "tests/test_package_install",
+      "lines": 12,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_package_install:_",
+      "label": "_",
+      "type": "entity",
+      "parent": "tests/test_package_install",
+      "lines": 0,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_package_install:test_import_codegraph",
+      "label": "test_import_codegraph",
+      "type": "entity",
+      "parent": "tests/test_package_install",
+      "lines": 4,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_package_install:test_import_core",
+      "label": "test_import_core",
+      "type": "entity",
+      "parent": "tests/test_package_install",
+      "lines": 4,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_package_install:test_import_vizualyzer",
+      "label": "test_import_vizualyzer",
+      "type": "entity",
+      "parent": "tests/test_package_install",
+      "lines": 5,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_package_install:test_cli_help",
+      "label": "test_cli_help",
+      "type": "entity",
+      "parent": "tests/test_package_install",
+      "lines": 8,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_utils",
+      "label": "test_utils",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "tests/test_utils.py",
+      "lines": 11,
+      "imports": [
+        "pytest",
+        "pathlib",
+        "codegraph"
+      ]
+    },
+    {
+      "id": "tests/test_utils:_",
+      "label": "_",
+      "type": "entity",
+      "parent": "tests/test_utils",
+      "lines": 0,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_utils:test_get_python_paths_list_error",
+      "label": "test_get_python_paths_list_error",
+      "type": "entity",
+      "parent": "tests/test_utils",
+      "lines": 6,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_utils:test_get_python_paths_list",
       "label": "test_get_python_paths_list",
       "type": "entity",
-      "parent": "test_utils.py",
+      "parent": "tests/test_utils",
       "lines": 5,
       "entityType": "function"
     },
     {
-      "id": "alias_imports.py",
+      "id": "tests/__init__",
+      "label": "__init__",
       "type": "module",
       "collapsed": false,
-      "fullPath": "codegraph\\tests\\test_data\\alias_imports.py",
-      "lines": 4
+      "fullPath": "tests/__init__.py",
+      "lines": 0,
+      "imports": []
     },
     {
-      "id": "alias_imports.py:use_aliases",
+      "id": "tests/test_data/alias_imports",
+      "label": "alias_imports",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "tests/test_data/alias_imports.py",
+      "lines": 4,
+      "imports": [
+        "tests",
+        "tests"
+      ]
+    },
+    {
+      "id": "tests/test_data/alias_imports:use_aliases",
       "label": "use_aliases",
       "type": "entity",
-      "parent": "alias_imports.py",
+      "parent": "tests/test_data/alias_imports",
       "lines": 4,
       "entityType": "function"
     },
     {
-      "id": "alias_imports.py:_",
+      "id": "tests/test_data/alias_imports:_",
       "label": "_",
       "type": "entity",
-      "parent": "alias_imports.py",
+      "parent": "tests/test_data/alias_imports",
       "lines": 0,
       "entityType": "function"
     },
     {
-      "id": "comma_imports.py",
+      "id": "tests/test_data/comma_imports",
+      "label": "comma_imports",
       "type": "module",
       "collapsed": false,
-      "fullPath": "codegraph\\tests\\test_data\\comma_imports.py",
-      "lines": 5
+      "fullPath": "tests/test_data/comma_imports.py",
+      "lines": 5,
+      "imports": [
+        "tests",
+        "tests",
+        "tests"
+      ]
     },
     {
-      "id": "comma_imports.py:use_all",
+      "id": "tests/test_data/comma_imports:use_all",
       "label": "use_all",
       "type": "entity",
-      "parent": "comma_imports.py",
+      "parent": "tests/test_data/comma_imports",
       "lines": 5,
       "entityType": "function"
     },
     {
-      "id": "comma_imports.py:_",
+      "id": "tests/test_data/comma_imports:_",
       "label": "_",
       "type": "entity",
-      "parent": "comma_imports.py",
+      "parent": "tests/test_data/comma_imports",
       "lines": 0,
       "entityType": "function"
     },
     {
-      "id": "module_a.py",
+      "id": "tests/test_data/module_a",
+      "label": "module_a",
       "type": "module",
       "collapsed": false,
-      "fullPath": "codegraph\\tests\\test_data\\module_a.py",
-      "lines": 7
+      "fullPath": "tests/test_data/module_a.py",
+      "lines": 7,
+      "imports": [
+        "tests",
+        "tests"
+      ]
     },
     {
-      "id": "module_a.py:func_a",
+      "id": "tests/test_data/module_a:func_a",
       "label": "func_a",
       "type": "entity",
-      "parent": "module_a.py",
+      "parent": "tests/test_data/module_a",
       "lines": 4,
       "entityType": "function"
     },
     {
-      "id": "module_a.py:_",
+      "id": "tests/test_data/module_a:_",
       "label": "_",
       "type": "entity",
-      "parent": "module_a.py",
+      "parent": "tests/test_data/module_a",
       "lines": 0,
       "entityType": "function"
     },
     {
-      "id": "module_a.py:func_a2",
+      "id": "tests/test_data/module_a:func_a2",
       "label": "func_a2",
       "type": "entity",
-      "parent": "module_a.py",
+      "parent": "tests/test_data/module_a",
       "lines": 3,
       "entityType": "function"
     },
     {
-      "id": "module_b.py",
+      "id": "tests/test_data/module_b",
+      "label": "module_b",
       "type": "module",
       "collapsed": false,
-      "fullPath": "codegraph\\tests\\test_data\\module_b.py",
-      "lines": 6
+      "fullPath": "tests/test_data/module_b.py",
+      "lines": 6,
+      "imports": [
+        "tests"
+      ]
     },
     {
-      "id": "module_b.py:func_b",
+      "id": "tests/test_data/module_b:func_b",
       "label": "func_b",
       "type": "entity",
-      "parent": "module_b.py",
+      "parent": "tests/test_data/module_b",
       "lines": 3,
       "entityType": "function"
     },
     {
-      "id": "module_b.py:_",
+      "id": "tests/test_data/module_b:_",
       "label": "_",
       "type": "entity",
-      "parent": "module_b.py",
+      "parent": "tests/test_data/module_b",
       "lines": 0,
       "entityType": "function"
     },
     {
-      "id": "module_b.py:func_b2",
+      "id": "tests/test_data/module_b:func_b2",
       "label": "func_b2",
       "type": "entity",
-      "parent": "module_b.py",
+      "parent": "tests/test_data/module_b",
       "lines": 3,
       "entityType": "function"
     },
     {
-      "id": "module_c.py",
+      "id": "tests/test_data/module_c",
+      "label": "module_c",
       "type": "module",
       "collapsed": false,
-      "fullPath": "codegraph\\tests\\test_data\\module_c.py",
-      "lines": 6
+      "fullPath": "tests/test_data/module_c.py",
+      "lines": 6,
+      "imports": []
     },
     {
-      "id": "module_c.py:func_c1",
+      "id": "tests/test_data/module_c:func_c1",
       "label": "func_c1",
       "type": "entity",
-      "parent": "module_c.py",
+      "parent": "tests/test_data/module_c",
       "lines": 3,
       "entityType": "function"
     },
     {
-      "id": "module_c.py:func_c2",
+      "id": "tests/test_data/module_c:func_c2",
       "label": "func_c2",
       "type": "entity",
-      "parent": "module_c.py",
+      "parent": "tests/test_data/module_c",
       "lines": 3,
       "entityType": "function"
+    },
+    {
+      "id": "tests/test_data/vizualyzer",
+      "label": "vizualyzer",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "tests/test_data/vizualyzer.py",
+      "lines": 90,
+      "imports": [
+        "os",
+        "matplotlib",
+        "networkx",
+        "typing"
+      ]
+    },
+    {
+      "id": "tests/test_data/vizualyzer:draw_graph",
+      "label": "draw_graph",
+      "type": "entity",
+      "parent": "tests/test_data/vizualyzer",
+      "lines": 73,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_data/vizualyzer:process_module_in_graph",
+      "label": "process_module_in_graph",
+      "type": "entity",
+      "parent": "tests/test_data/vizualyzer",
+      "lines": 17,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_data/duplicate_names/src/main",
+      "label": "main",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "tests/test_data/duplicate_names/src/main.py",
+      "lines": 5,
+      "imports": [
+        "src",
+        "src"
+      ]
+    },
+    {
+      "id": "tests/test_data/duplicate_names/src/main:main",
+      "label": "main",
+      "type": "entity",
+      "parent": "tests/test_data/duplicate_names/src/main",
+      "lines": 5,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_data/duplicate_names/src/main:_",
+      "label": "_",
+      "type": "entity",
+      "parent": "tests/test_data/duplicate_names/src/main",
+      "lines": 0,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_data/duplicate_names/src/utils",
+      "label": "utils",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "tests/test_data/duplicate_names/src/utils.py",
+      "lines": 6,
+      "imports": []
+    },
+    {
+      "id": "tests/test_data/duplicate_names/src/utils:src_helper",
+      "label": "src_helper",
+      "type": "entity",
+      "parent": "tests/test_data/duplicate_names/src/utils",
+      "lines": 3,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_data/duplicate_names/src/utils:common_function",
+      "label": "common_function",
+      "type": "entity",
+      "parent": "tests/test_data/duplicate_names/src/utils",
+      "lines": 3,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_data/duplicate_names/tests/sample_test",
+      "label": "sample_test",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "tests/test_data/duplicate_names/tests/sample_test.py",
+      "lines": 5,
+      "imports": [
+        "tests",
+        "tests"
+      ]
+    },
+    {
+      "id": "tests/test_data/duplicate_names/tests/sample_test:test_something",
+      "label": "test_something",
+      "type": "entity",
+      "parent": "tests/test_data/duplicate_names/tests/sample_test",
+      "lines": 5,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_data/duplicate_names/tests/sample_test:_",
+      "label": "_",
+      "type": "entity",
+      "parent": "tests/test_data/duplicate_names/tests/sample_test",
+      "lines": 0,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_data/duplicate_names/tests/utils",
+      "label": "utils",
+      "type": "module",
+      "collapsed": false,
+      "fullPath": "tests/test_data/duplicate_names/tests/utils.py",
+      "lines": 6,
+      "imports": []
+    },
+    {
+      "id": "tests/test_data/duplicate_names/tests/utils:test_helper",
+      "label": "test_helper",
+      "type": "entity",
+      "parent": "tests/test_data/duplicate_names/tests/utils",
+      "lines": 3,
+      "entityType": "function"
+    },
+    {
+      "id": "tests/test_data/duplicate_names/tests/utils:common_function",
+      "label": "common_function",
+      "type": "entity",
+      "parent": "tests/test_data/duplicate_names/tests/utils",
+      "lines": 3,
+      "entityType": "function"
+    },
+    {
+      "id": "codegraph",
+      "type": "external",
+      "label": "codegraph",
+      "fullPath": "codegraph"
+    },
+    {
+      "id": "logging",
+      "type": "external",
+      "label": "logging",
+      "fullPath": "logging"
+    },
+    {
+      "id": "typing",
+      "type": "external",
+      "label": "typing",
+      "fullPath": "typing"
+    },
+    {
+      "id": "collections",
+      "type": "external",
+      "label": "collections",
+      "fullPath": "collections"
+    },
+    {
+      "id": "os",
+      "type": "external",
+      "label": "os",
+      "fullPath": "os"
+    },
+    {
+      "id": "argparse",
+      "type": "external",
+      "label": "argparse",
+      "fullPath": "argparse"
+    },
+    {
+      "id": "pprint",
+      "type": "external",
+      "label": "pprint",
+      "fullPath": "pprint"
+    },
+    {
+      "id": "sys",
+      "type": "external",
+      "label": "sys",
+      "fullPath": "sys"
+    },
+    {
+      "id": "click",
+      "type": "external",
+      "label": "click",
+      "fullPath": "click"
     },
     {
       "id": "object",
       "type": "external",
       "label": "object"
+    },
+    {
+      "id": "token",
+      "type": "external",
+      "label": "token",
+      "fullPath": "token"
+    },
+    {
+      "id": "tokenize",
+      "type": "external",
+      "label": "tokenize",
+      "fullPath": "tokenize"
+    },
+    {
+      "id": "io",
+      "type": "external",
+      "label": "io",
+      "fullPath": "io"
+    },
+    {
+      "id": "pathlib",
+      "type": "external",
+      "label": "pathlib",
+      "fullPath": "pathlib"
+    },
+    {
+      "id": "glob",
+      "type": "external",
+      "label": "glob",
+      "fullPath": "glob"
+    },
+    {
+      "id": "json",
+      "type": "external",
+      "label": "json",
+      "fullPath": "json"
+    },
+    {
+      "id": "csv",
+      "type": "external",
+      "label": "csv",
+      "fullPath": "csv"
+    },
+    {
+      "id": "matplotlib",
+      "type": "external",
+      "label": "matplotlib",
+      "fullPath": "matplotlib"
+    },
+    {
+      "id": "networkx",
+      "type": "external",
+      "label": "networkx",
+      "fullPath": "networkx"
+    },
+    {
+      "id": "webbrowser",
+      "type": "external",
+      "label": "webbrowser",
+      "fullPath": "webbrowser"
+    },
+    {
+      "id": "tempfile",
+      "type": "external",
+      "label": "tempfile",
+      "fullPath": "tempfile"
+    },
+    {
+      "id": "pytest",
+      "type": "external",
+      "label": "pytest",
+      "fullPath": "pytest"
+    },
+    {
+      "id": "tests",
+      "type": "external",
+      "label": "tests",
+      "fullPath": "tests"
+    },
+    {
+      "id": "src",
+      "type": "external",
+      "label": "src",
+      "fullPath": "src"
     }
   ],
   "links": [
     {
-      "source": "core.py",
-      "target": "core.py:parse_code_file",
+      "source": "codegraph/core",
+      "target": "codegraph/core:parse_code_file",
       "type": "module-entity"
     },
     {
-      "source": "core.py:parse_code_file",
-      "target": "parser.py:create_objects_array",
+      "source": "codegraph/core:parse_code_file",
+      "target": "codegraph/parser:create_objects_array",
       "type": "dependency"
     },
     {
-      "source": "core.py:parse_code_file",
-      "target": "core.py:read_file_content",
+      "source": "codegraph/core:parse_code_file",
+      "target": "codegraph/core:read_file_content",
       "type": "dependency"
     },
     {
-      "source": "core.py",
-      "target": "core.py:CodeGraph",
+      "source": "codegraph/core",
+      "target": "codegraph/core:CodeGraph",
       "type": "module-entity"
     },
     {
-      "source": "core.py:CodeGraph",
-      "target": "utils.py:get_python_paths_list",
+      "source": "codegraph/core:CodeGraph",
+      "target": "codegraph/core:read_file_content",
       "type": "dependency"
     },
     {
-      "source": "core.py:CodeGraph",
-      "target": "core.py:get_code_objects",
+      "source": "codegraph/core:CodeGraph",
+      "target": "codegraph/core:read_file_content",
       "type": "dependency"
     },
     {
-      "source": "core.py:CodeGraph",
-      "target": "core.py:get_imports_and_entities_lines",
+      "source": "codegraph/core:CodeGraph",
+      "target": "codegraph/core:parse_code_file",
       "type": "dependency"
     },
     {
-      "source": "core.py:CodeGraph",
-      "target": "core.py:collect_entities_usage_in_modules",
+      "source": "codegraph/core:CodeGraph",
+      "target": "codegraph/core:parse_code_file",
       "type": "dependency"
     },
     {
-      "source": "core.py:CodeGraph",
-      "target": "core.py:populate_free_nodes",
+      "source": "codegraph/core:CodeGraph",
+      "target": "codegraph/core:get_code_objects",
       "type": "dependency"
     },
     {
-      "source": "core.py",
-      "target": "core.py:collect_entities_usage_in_modules",
+      "source": "codegraph/core:CodeGraph",
+      "target": "codegraph/core:get_imports_and_entities_lines",
+      "type": "dependency"
+    },
+    {
+      "source": "codegraph/core:CodeGraph",
+      "target": "codegraph/core:collect_entities_usage_in_modules",
+      "type": "dependency"
+    },
+    {
+      "source": "codegraph/core:CodeGraph",
+      "target": "codegraph/core:populate_free_nodes",
+      "type": "dependency"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "codegraph/core:collect_entities_usage_in_modules",
       "type": "module-entity"
     },
     {
-      "source": "core.py:collect_entities_usage_in_modules",
-      "target": "core.py:read_file_content",
+      "source": "codegraph/core:collect_entities_usage_in_modules",
+      "target": "codegraph/core:read_file_content",
       "type": "dependency"
     },
     {
-      "source": "core.py:collect_entities_usage_in_modules",
-      "target": "core.py:get_module_name",
+      "source": "codegraph/core:collect_entities_usage_in_modules",
+      "target": "codegraph/core:get_module_name",
       "type": "dependency"
     },
     {
-      "source": "core.py:collect_entities_usage_in_modules",
-      "target": "core.py:search_entities_from_module_in_code",
+      "source": "codegraph/core:collect_entities_usage_in_modules",
+      "target": "codegraph/core:search_entities_from_module_in_code",
       "type": "dependency"
     },
     {
-      "source": "core.py:collect_entities_usage_in_modules",
-      "target": "core.py:search_entities_from_module_in_code",
+      "source": "codegraph/core:collect_entities_usage_in_modules",
+      "target": "codegraph/core:search_entities_from_module_in_code",
       "type": "dependency"
     },
     {
-      "source": "core.py",
-      "target": "core.py:get_code_objects",
+      "source": "codegraph/core",
+      "target": "codegraph/core:get_code_objects",
       "type": "module-entity"
     },
     {
-      "source": "core.py:get_code_objects",
-      "target": "core.py:parse_code_file",
+      "source": "codegraph/core:get_code_objects",
+      "target": "codegraph/core:parse_code_file",
       "type": "dependency"
     },
     {
-      "source": "core.py",
-      "target": "core.py:get_imports_and_entities_lines",
+      "source": "codegraph/core",
+      "target": "codegraph/core:get_imports_and_entities_lines",
       "type": "module-entity"
     },
     {
-      "source": "core.py:get_imports_and_entities_lines",
-      "target": "core.py:get_module_name",
+      "source": "codegraph/core:get_imports_and_entities_lines",
+      "target": "codegraph/core:get_module_name",
       "type": "dependency"
     },
     {
-      "source": "core.py",
-      "target": "core.py:search_entities_from_list_in_code",
+      "source": "codegraph/core:get_imports_and_entities_lines",
+      "target": "codegraph/core:get_module_name",
+      "type": "dependency"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "codegraph/core:search_entities_from_list_in_code",
       "type": "module-entity"
     },
     {
-      "source": "core.py:search_entities_from_list_in_code",
-      "target": "core.py:search_entity_usage",
+      "source": "codegraph/core:search_entities_from_list_in_code",
+      "target": "codegraph/core:search_entity_usage",
       "type": "dependency"
     },
     {
-      "source": "core.py",
-      "target": "core.py:search_entities_from_module_in_code",
+      "source": "codegraph/core",
+      "target": "codegraph/core:search_entities_from_module_in_code",
       "type": "module-entity"
     },
     {
-      "source": "core.py:search_entities_from_module_in_code",
-      "target": "core.py:search_entities_from_list_in_code",
+      "source": "codegraph/core:search_entities_from_module_in_code",
+      "target": "codegraph/core:search_entities_from_list_in_code",
       "type": "dependency"
     },
     {
-      "source": "core.py",
-      "target": "core.py:_",
+      "source": "codegraph/core",
+      "target": "codegraph/core:_",
       "type": "module-entity"
     },
     {
-      "source": "core.py",
-      "target": "core.py:read_file_content",
+      "source": "codegraph/core:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "codegraph/core:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "codegraph/core:read_file_content",
       "type": "module-entity"
     },
     {
-      "source": "core.py",
-      "target": "core.py:get_module_name",
+      "source": "codegraph/core",
+      "target": "codegraph/core:get_module_name",
       "type": "module-entity"
     },
     {
-      "source": "core.py",
-      "target": "core.py:module_name_in_imports",
+      "source": "codegraph/core",
+      "target": "codegraph/core:module_name_in_imports",
       "type": "module-entity"
     },
     {
-      "source": "core.py",
-      "target": "core.py:populate_free_nodes",
+      "source": "codegraph/core",
+      "target": "codegraph/core:populate_free_nodes",
       "type": "module-entity"
     },
     {
-      "source": "core.py",
-      "target": "core.py:search_entity_usage",
+      "source": "codegraph/core",
+      "target": "codegraph/core:search_entity_usage",
       "type": "module-entity"
     },
     {
-      "source": "main.py",
-      "target": "main.py:main",
+      "source": "codegraph/main",
+      "target": "codegraph/main:main",
       "type": "module-entity"
     },
     {
-      "source": "main.py:main",
-      "target": "core.py:CodeGraph",
+      "source": "codegraph/main:main",
+      "target": "codegraph/vizualyzer:draw_graph",
       "type": "dependency"
     },
     {
-      "source": "main.py:main",
-      "target": "vizualyzer.py:draw_graph",
+      "source": "codegraph/main:main",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "main.py:main",
-      "target": "main.py:cli",
+      "source": "codegraph/main:main",
+      "target": "codegraph/main:cli",
       "type": "dependency"
     },
     {
-      "source": "main.py",
-      "target": "main.py:_",
+      "source": "codegraph/main",
+      "target": "codegraph/main:_",
       "type": "module-entity"
     },
     {
-      "source": "main.py:_",
-      "target": "main.py:main",
+      "source": "codegraph/main:_",
+      "target": "codegraph/main:main",
       "type": "dependency"
     },
     {
-      "source": "main.py",
-      "target": "main.py:cli",
+      "source": "codegraph/main:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "codegraph/main:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "codegraph/main:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "codegraph/main",
+      "target": "codegraph/main:cli",
       "type": "module-entity"
     },
     {
-      "source": "parser.py",
-      "target": "parser.py:Function",
+      "source": "codegraph/parser",
+      "target": "codegraph/parser:Function",
       "type": "module-entity"
     },
     {
-      "source": "parser.py:Function",
-      "target": "parser.py:_Object",
+      "source": "codegraph/parser:Function",
+      "target": "codegraph/parser:_Object",
       "type": "dependency"
     },
     {
-      "source": "parser.py:Function",
-      "target": "parser.py:_Object",
+      "source": "codegraph/parser:Function",
+      "target": "codegraph/parser:_Object",
       "type": "dependency"
     },
     {
-      "source": "parser.py",
-      "target": "parser.py:AsyncFunction",
+      "source": "codegraph/parser",
+      "target": "codegraph/parser:AsyncFunction",
       "type": "module-entity"
     },
     {
-      "source": "parser.py:AsyncFunction",
-      "target": "parser.py:_Object",
+      "source": "codegraph/parser:AsyncFunction",
+      "target": "codegraph/parser:_Object",
       "type": "dependency"
     },
     {
-      "source": "parser.py:AsyncFunction",
-      "target": "parser.py:_Object",
+      "source": "codegraph/parser:AsyncFunction",
+      "target": "codegraph/parser:_Object",
       "type": "dependency"
     },
     {
-      "source": "parser.py",
-      "target": "parser.py:Class",
+      "source": "codegraph/parser",
+      "target": "codegraph/parser:Class",
       "type": "module-entity"
     },
     {
-      "source": "parser.py:Class",
-      "target": "parser.py:_Object",
+      "source": "codegraph/parser:Class",
+      "target": "codegraph/parser:_Object",
       "type": "dependency"
     },
     {
-      "source": "parser.py:Class",
-      "target": "parser.py:_Object",
+      "source": "codegraph/parser:Class",
+      "target": "codegraph/parser:_Object",
       "type": "dependency"
     },
     {
-      "source": "parser.py",
-      "target": "parser.py:_nest_function",
+      "source": "codegraph/parser",
+      "target": "codegraph/parser:_nest_function",
       "type": "module-entity"
     },
     {
-      "source": "parser.py:_nest_function",
-      "target": "parser.py:Function",
+      "source": "codegraph/parser:_nest_function",
+      "target": "codegraph/parser:Function",
       "type": "dependency"
     },
     {
-      "source": "parser.py",
-      "target": "parser.py:create_objects_array",
+      "source": "codegraph/parser",
+      "target": "codegraph/parser:create_objects_array",
       "type": "module-entity"
     },
     {
-      "source": "parser.py:create_objects_array",
-      "target": "parser.py:Function",
+      "source": "codegraph/parser:create_objects_array",
+      "target": "codegraph/parser:Function",
       "type": "dependency"
     },
     {
-      "source": "parser.py:create_objects_array",
-      "target": "parser.py:Function",
+      "source": "codegraph/parser:create_objects_array",
+      "target": "codegraph/parser:Function",
       "type": "dependency"
     },
     {
-      "source": "parser.py:create_objects_array",
-      "target": "parser.py:Class",
+      "source": "codegraph/parser:create_objects_array",
+      "target": "codegraph/parser:Class",
       "type": "dependency"
     },
     {
-      "source": "parser.py:create_objects_array",
-      "target": "parser.py:Import",
+      "source": "codegraph/parser:create_objects_array",
+      "target": "codegraph/parser:Import",
       "type": "dependency"
     },
     {
-      "source": "parser.py:create_objects_array",
-      "target": "parser.py:Import",
+      "source": "codegraph/parser:create_objects_array",
+      "target": "codegraph/parser:Import",
       "type": "dependency"
     },
     {
-      "source": "parser.py:create_objects_array",
-      "target": "parser.py:_nest_function",
+      "source": "codegraph/parser:create_objects_array",
+      "target": "codegraph/parser:_nest_function",
       "type": "dependency"
     },
     {
-      "source": "parser.py:create_objects_array",
-      "target": "parser.py:_nest_function",
+      "source": "codegraph/parser:create_objects_array",
+      "target": "codegraph/parser:_nest_function",
       "type": "dependency"
     },
     {
-      "source": "parser.py:create_objects_array",
-      "target": "parser.py:AsyncFunction",
+      "source": "codegraph/parser:create_objects_array",
+      "target": "codegraph/parser:AsyncFunction",
       "type": "dependency"
     },
     {
-      "source": "parser.py:create_objects_array",
-      "target": "parser.py:_nest_class",
+      "source": "codegraph/parser:create_objects_array",
+      "target": "codegraph/parser:_nest_class",
       "type": "dependency"
     },
     {
-      "source": "parser.py",
-      "target": "parser.py:_nest_class",
+      "source": "codegraph/parser",
+      "target": "codegraph/parser:_nest_class",
       "type": "module-entity"
     },
     {
-      "source": "parser.py:_nest_class",
-      "target": "parser.py:Class",
+      "source": "codegraph/parser:_nest_class",
+      "target": "codegraph/parser:Class",
       "type": "dependency"
     },
     {
-      "source": "parser.py",
-      "target": "parser.py:_Object",
+      "source": "codegraph/parser",
+      "target": "codegraph/parser:_Object",
       "type": "module-entity"
     },
     {
-      "source": "parser.py",
-      "target": "parser.py:Import",
+      "source": "codegraph/parser",
+      "target": "codegraph/parser:Import",
       "type": "module-entity"
     },
     {
-      "source": "parser.py:Import",
+      "source": "codegraph/parser:Import",
       "target": "object",
       "type": "dependency"
     },
     {
-      "source": "utils.py",
-      "target": "utils.py:get_python_paths_list",
+      "source": "codegraph/utils",
+      "target": "codegraph/utils:get_relative_path",
       "type": "module-entity"
     },
     {
-      "source": "vizualyzer.py",
-      "target": "vizualyzer.py:draw_graph_matplotlib",
+      "source": "codegraph/utils",
+      "target": "codegraph/utils:get_python_paths_list",
       "type": "module-entity"
     },
     {
-      "source": "vizualyzer.py:draw_graph_matplotlib",
-      "target": "vizualyzer.py:process_module_in_graph",
+      "source": "codegraph/vizualyzer",
+      "target": "codegraph/vizualyzer:draw_graph_matplotlib",
+      "type": "module-entity"
+    },
+    {
+      "source": "codegraph/vizualyzer:draw_graph_matplotlib",
+      "target": "codegraph/vizualyzer:process_module_in_graph",
       "type": "dependency"
     },
     {
-      "source": "vizualyzer.py",
-      "target": "vizualyzer.py:_read_template_file",
+      "source": "codegraph/vizualyzer",
+      "target": "codegraph/vizualyzer:_read_template_file",
       "type": "module-entity"
     },
     {
-      "source": "vizualyzer.py:_read_template_file",
-      "target": "vizualyzer.py:_get_template_dir",
+      "source": "codegraph/vizualyzer:_read_template_file",
+      "target": "codegraph/vizualyzer:_get_template_dir",
       "type": "dependency"
     },
     {
-      "source": "vizualyzer.py",
-      "target": "vizualyzer.py:get_d3_html_template",
+      "source": "codegraph/vizualyzer",
+      "target": "codegraph/vizualyzer:get_d3_html_template",
       "type": "module-entity"
     },
     {
-      "source": "vizualyzer.py:get_d3_html_template",
-      "target": "vizualyzer.py:_read_template_file",
+      "source": "codegraph/vizualyzer:get_d3_html_template",
+      "target": "codegraph/vizualyzer:_read_template_file",
       "type": "dependency"
     },
     {
-      "source": "vizualyzer.py:get_d3_html_template",
-      "target": "vizualyzer.py:_read_template_file",
+      "source": "codegraph/vizualyzer:get_d3_html_template",
+      "target": "codegraph/vizualyzer:_read_template_file",
       "type": "dependency"
     },
     {
-      "source": "vizualyzer.py:get_d3_html_template",
-      "target": "vizualyzer.py:_read_template_file",
+      "source": "codegraph/vizualyzer:get_d3_html_template",
+      "target": "codegraph/vizualyzer:_read_template_file",
       "type": "dependency"
     },
     {
-      "source": "vizualyzer.py",
-      "target": "vizualyzer.py:draw_graph",
+      "source": "codegraph/vizualyzer",
+      "target": "codegraph/vizualyzer:draw_graph",
       "type": "module-entity"
     },
     {
-      "source": "vizualyzer.py:draw_graph",
-      "target": "vizualyzer.py:convert_to_d3_format",
+      "source": "codegraph/vizualyzer:draw_graph",
+      "target": "codegraph/vizualyzer:convert_to_d3_format",
       "type": "dependency"
     },
     {
-      "source": "vizualyzer.py:draw_graph",
-      "target": "vizualyzer.py:get_d3_html_template",
+      "source": "codegraph/vizualyzer:draw_graph",
+      "target": "codegraph/vizualyzer:get_d3_html_template",
       "type": "dependency"
     },
     {
-      "source": "vizualyzer.py",
-      "target": "vizualyzer.py:export_to_csv",
+      "source": "codegraph/vizualyzer",
+      "target": "codegraph/vizualyzer:export_to_csv",
       "type": "module-entity"
     },
     {
-      "source": "vizualyzer.py:export_to_csv",
-      "target": "vizualyzer.py:convert_to_d3_format",
+      "source": "codegraph/vizualyzer:export_to_csv",
+      "target": "codegraph/vizualyzer:convert_to_d3_format",
       "type": "dependency"
     },
     {
-      "source": "vizualyzer.py",
-      "target": "vizualyzer.py:process_module_in_graph",
+      "source": "codegraph/vizualyzer",
+      "target": "codegraph/vizualyzer:_",
       "type": "module-entity"
     },
     {
-      "source": "vizualyzer.py",
-      "target": "vizualyzer.py:convert_to_d3_format",
-      "type": "module-entity"
-    },
-    {
-      "source": "vizualyzer.py",
-      "target": "vizualyzer.py:_get_template_dir",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_codegraph.py",
-      "target": "test_codegraph.py:test_main",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_codegraph.py:test_main",
-      "target": "core.py:CodeGraph",
+      "source": "codegraph/vizualyzer:_",
+      "target": "codegraph/core:_",
       "type": "dependency"
     },
     {
-      "source": "test_codegraph.py",
-      "target": "test_codegraph.py:_",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_graph_generation.py",
-      "target": "test_graph_generation.py:TestImportParsing",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_graph_generation.py:TestImportParsing",
-      "target": "parser.py:create_objects_array",
+      "source": "codegraph/vizualyzer:_",
+      "target": "codegraph/core:_",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py:TestImportParsing",
-      "target": "parser.py:create_objects_array",
+      "source": "codegraph/vizualyzer",
+      "target": "codegraph/vizualyzer:process_module_in_graph",
+      "type": "module-entity"
+    },
+    {
+      "source": "codegraph/vizualyzer",
+      "target": "codegraph/vizualyzer:convert_to_d3_format",
+      "type": "module-entity"
+    },
+    {
+      "source": "codegraph/vizualyzer",
+      "target": "codegraph/vizualyzer:_get_template_dir",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_codegraph",
+      "target": "tests/test_codegraph:test_main",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_codegraph:test_main",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py:TestImportParsing",
-      "target": "parser.py:create_objects_array",
+      "source": "tests/test_codegraph",
+      "target": "tests/test_codegraph:_",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_codegraph:_",
+      "target": "codegraph/core:_",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py:TestImportParsing",
-      "target": "parser.py:create_objects_array",
+      "source": "tests/test_graph_generation",
+      "target": "tests/test_graph_generation:TestCodeGraphConnections",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_graph_generation:TestCodeGraphConnections",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py:TestImportParsing",
-      "target": "parser.py:create_objects_array",
+      "source": "tests/test_graph_generation:TestCodeGraphConnections",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py:TestImportParsing",
-      "target": "parser.py:create_objects_array",
+      "source": "tests/test_graph_generation",
+      "target": "tests/test_graph_generation:TestCodeGraphOnItself",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_graph_generation:TestCodeGraphOnItself",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py:TestImportParsing",
-      "target": "parser.py:create_objects_array",
+      "source": "tests/test_graph_generation:TestCodeGraphOnItself",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py",
-      "target": "test_graph_generation.py:TestCodeGraphConnections",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_graph_generation.py:TestCodeGraphConnections",
-      "target": "core.py:CodeGraph",
+      "source": "tests/test_graph_generation:TestCodeGraphOnItself",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py:TestCodeGraphConnections",
-      "target": "core.py:CodeGraph",
+      "source": "tests/test_graph_generation",
+      "target": "tests/test_graph_generation:TestCSVExport",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_graph_generation:TestCSVExport",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py",
-      "target": "test_graph_generation.py:TestCodeGraphOnItself",
+      "source": "tests/test_graph_generation",
+      "target": "tests/test_graph_generation:TestDuplicateFilenames",
       "type": "module-entity"
     },
     {
-      "source": "test_graph_generation.py:TestCodeGraphOnItself",
-      "target": "core.py:CodeGraph",
+      "source": "tests/test_graph_generation:TestDuplicateFilenames",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py:TestCodeGraphOnItself",
-      "target": "core.py:CodeGraph",
+      "source": "tests/test_graph_generation:TestDuplicateFilenames",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py:TestCodeGraphOnItself",
-      "target": "core.py:CodeGraph",
+      "source": "tests/test_graph_generation:TestDuplicateFilenames",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py",
-      "target": "test_graph_generation.py:TestCSVExport",
+      "source": "tests/test_graph_generation",
+      "target": "tests/test_graph_generation:TestImportParsing",
       "type": "module-entity"
     },
     {
-      "source": "test_graph_generation.py:TestCSVExport",
-      "target": "core.py:CodeGraph",
+      "source": "tests/test_graph_generation:TestImportParsing",
+      "target": "codegraph/parser:create_objects_array",
       "type": "dependency"
     },
     {
-      "source": "test_graph_generation.py",
-      "target": "test_graph_generation.py:_",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_graph_generation.py",
-      "target": "test_graph_generation.py:TestD3FormatConversion",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_package_install.py",
-      "target": "test_package_install.py:test_d3_visualization_without_matplotlib",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_package_install.py:test_d3_visualization_without_matplotlib",
-      "target": "vizualyzer.py:draw_graph",
+      "source": "tests/test_graph_generation:TestImportParsing",
+      "target": "codegraph/parser:create_objects_array",
       "type": "dependency"
     },
     {
-      "source": "test_package_install.py",
-      "target": "test_package_install.py:test_codegraph_on_itself_without_matplotlib",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_package_install.py:test_codegraph_on_itself_without_matplotlib",
-      "target": "core.py:CodeGraph",
+      "source": "tests/test_graph_generation:TestImportParsing",
+      "target": "codegraph/parser:create_objects_array",
       "type": "dependency"
     },
     {
-      "source": "test_package_install.py",
-      "target": "test_package_install.py:_",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_package_install.py",
-      "target": "test_package_install.py:test_import_codegraph",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_package_install.py",
-      "target": "test_package_install.py:test_import_core",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_package_install.py",
-      "target": "test_package_install.py:test_import_vizualyzer",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_package_install.py",
-      "target": "test_package_install.py:test_cli_help",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_utils.py",
-      "target": "test_utils.py:test_get_python_paths_list_error",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_utils.py:test_get_python_paths_list_error",
-      "target": "utils.py:get_python_paths_list",
+      "source": "tests/test_graph_generation:TestImportParsing",
+      "target": "codegraph/parser:create_objects_array",
       "type": "dependency"
     },
     {
-      "source": "test_utils.py",
-      "target": "test_utils.py:_",
-      "type": "module-entity"
-    },
-    {
-      "source": "test_utils.py:_",
-      "target": "utils.py:get_python_paths_list",
+      "source": "tests/test_graph_generation:TestImportParsing",
+      "target": "codegraph/parser:create_objects_array",
       "type": "dependency"
     },
     {
-      "source": "test_utils.py",
-      "target": "test_utils.py:test_get_python_paths_list",
-      "type": "module-entity"
-    },
-    {
-      "source": "alias_imports.py",
-      "target": "alias_imports.py:use_aliases",
-      "type": "module-entity"
-    },
-    {
-      "source": "alias_imports.py:use_aliases",
-      "target": "module_b.py:func_b",
+      "source": "tests/test_graph_generation:TestImportParsing",
+      "target": "codegraph/parser:create_objects_array",
       "type": "dependency"
     },
     {
-      "source": "alias_imports.py:use_aliases",
-      "target": "module_a.py:func_a",
+      "source": "tests/test_graph_generation:TestImportParsing",
+      "target": "codegraph/parser:create_objects_array",
       "type": "dependency"
     },
     {
-      "source": "alias_imports.py",
-      "target": "alias_imports.py:_",
+      "source": "tests/test_graph_generation",
+      "target": "tests/test_graph_generation:_",
       "type": "module-entity"
     },
     {
-      "source": "comma_imports.py",
-      "target": "comma_imports.py:use_all",
-      "type": "module-entity"
-    },
-    {
-      "source": "comma_imports.py:use_all",
-      "target": "module_a.py:func_a",
+      "source": "tests/test_graph_generation:_",
+      "target": "codegraph/core:_",
       "type": "dependency"
     },
     {
-      "source": "comma_imports.py:use_all",
-      "target": "module_c.py:func_c1",
+      "source": "tests/test_graph_generation:_",
+      "target": "codegraph/core:_",
       "type": "dependency"
     },
     {
-      "source": "comma_imports.py:use_all",
-      "target": "module_b.py:func_b",
+      "source": "tests/test_graph_generation:_",
+      "target": "codegraph/core:_",
       "type": "dependency"
     },
     {
-      "source": "comma_imports.py",
-      "target": "comma_imports.py:_",
+      "source": "tests/test_graph_generation",
+      "target": "tests/test_graph_generation:TestD3FormatConversion",
       "type": "module-entity"
     },
     {
-      "source": "module_a.py",
-      "target": "module_a.py:func_a",
+      "source": "tests/test_package_install",
+      "target": "tests/test_package_install:test_d3_visualization_without_matplotlib",
       "type": "module-entity"
     },
     {
-      "source": "module_a.py:func_a",
-      "target": "module_c.py:func_c1",
+      "source": "tests/test_package_install:test_d3_visualization_without_matplotlib",
+      "target": "codegraph/vizualyzer:draw_graph",
       "type": "dependency"
     },
     {
-      "source": "module_a.py:func_a",
-      "target": "module_b.py:func_b",
+      "source": "tests/test_package_install",
+      "target": "tests/test_package_install:test_codegraph_on_itself_without_matplotlib",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_package_install:test_codegraph_on_itself_without_matplotlib",
+      "target": "codegraph/core:CodeGraph",
       "type": "dependency"
     },
     {
-      "source": "module_a.py",
-      "target": "module_a.py:_",
+      "source": "tests/test_package_install",
+      "target": "tests/test_package_install:_",
       "type": "module-entity"
     },
     {
-      "source": "module_a.py",
-      "target": "module_a.py:func_a2",
-      "type": "module-entity"
-    },
-    {
-      "source": "module_b.py",
-      "target": "module_b.py:func_b",
-      "type": "module-entity"
-    },
-    {
-      "source": "module_b.py:func_b",
-      "target": "module_c.py:func_c2",
+      "source": "tests/test_package_install:_",
+      "target": "codegraph/core:_",
       "type": "dependency"
     },
     {
-      "source": "module_b.py",
-      "target": "module_b.py:_",
-      "type": "module-entity"
-    },
-    {
-      "source": "module_b.py",
-      "target": "module_b.py:func_b2",
-      "type": "module-entity"
-    },
-    {
-      "source": "module_c.py",
-      "target": "module_c.py:func_c1",
-      "type": "module-entity"
-    },
-    {
-      "source": "module_c.py",
-      "target": "module_c.py:func_c2",
-      "type": "module-entity"
-    },
-    {
-      "source": "vizualyzer.py",
-      "target": "vizualyzer.py:draw_graph",
-      "type": "module-entity"
-    },
-    {
-      "source": "vizualyzer.py:draw_graph",
-      "target": "vizualyzer.py:process_module_in_graph",
+      "source": "tests/test_package_install:_",
+      "target": "codegraph/core:_",
       "type": "dependency"
     },
     {
-      "source": "vizualyzer.py",
-      "target": "vizualyzer.py:process_module_in_graph",
+      "source": "tests/test_package_install:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_package_install:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_package_install",
+      "target": "tests/test_package_install:test_import_codegraph",
       "type": "module-entity"
     },
     {
-      "source": "alias_imports.py",
-      "target": "module_b.py",
+      "source": "tests/test_package_install",
+      "target": "tests/test_package_install:test_import_core",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_package_install",
+      "target": "tests/test_package_install:test_import_vizualyzer",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_package_install",
+      "target": "tests/test_package_install:test_cli_help",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_utils",
+      "target": "tests/test_utils:_",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_utils:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_utils",
+      "target": "tests/test_utils:test_get_python_paths_list_error",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_utils",
+      "target": "tests/test_utils:test_get_python_paths_list",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/alias_imports",
+      "target": "tests/test_data/alias_imports:use_aliases",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/alias_imports:use_aliases",
+      "target": "tests/test_data/module_a:func_a",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/alias_imports:use_aliases",
+      "target": "tests/test_data/module_b:func_b",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/alias_imports",
+      "target": "tests/test_data/alias_imports:_",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/alias_imports:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/alias_imports:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/comma_imports",
+      "target": "tests/test_data/comma_imports:use_all",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/comma_imports:use_all",
+      "target": "tests/test_data/module_c:func_c1",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/comma_imports:use_all",
+      "target": "tests/test_data/module_b:func_b",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/comma_imports:use_all",
+      "target": "tests/test_data/module_a:func_a",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/comma_imports",
+      "target": "tests/test_data/comma_imports:_",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/comma_imports:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/comma_imports:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/comma_imports:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/module_a",
+      "target": "tests/test_data/module_a:func_a",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/module_a:func_a",
+      "target": "tests/test_data/module_c:func_c1",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/module_a:func_a",
+      "target": "tests/test_data/module_b:func_b",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/module_a",
+      "target": "tests/test_data/module_a:_",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/module_a:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/module_a:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/module_a",
+      "target": "tests/test_data/module_a:func_a2",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/module_b",
+      "target": "tests/test_data/module_b:func_b",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/module_b:func_b",
+      "target": "tests/test_data/module_c:func_c2",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/module_b",
+      "target": "tests/test_data/module_b:_",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/module_b:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/module_b",
+      "target": "tests/test_data/module_b:func_b2",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/module_c",
+      "target": "tests/test_data/module_c:func_c1",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/module_c",
+      "target": "tests/test_data/module_c:func_c2",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/vizualyzer",
+      "target": "tests/test_data/vizualyzer:draw_graph",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/vizualyzer:draw_graph",
+      "target": "codegraph/vizualyzer:process_module_in_graph",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/vizualyzer",
+      "target": "tests/test_data/vizualyzer:process_module_in_graph",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/src/main",
+      "target": "tests/test_data/duplicate_names/src/main:main",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/src/main:main",
+      "target": "tests/test_data/duplicate_names/src/utils:common_function",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/src/main",
+      "target": "tests/test_data/duplicate_names/src/main:_",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/src/main:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/src/utils",
+      "target": "tests/test_data/duplicate_names/src/utils:src_helper",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/src/utils",
+      "target": "tests/test_data/duplicate_names/src/utils:common_function",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/tests/sample_test",
+      "target": "tests/test_data/duplicate_names/tests/sample_test:test_something",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/tests/sample_test:test_something",
+      "target": "tests/test_data/duplicate_names/tests/utils:test_helper",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/tests/sample_test:test_something",
+      "target": "tests/test_data/duplicate_names/src/utils:common_function",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/tests/sample_test",
+      "target": "tests/test_data/duplicate_names/tests/sample_test:_",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/tests/sample_test:_",
+      "target": "codegraph/core:_",
+      "type": "dependency"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/tests/utils",
+      "target": "tests/test_data/duplicate_names/tests/utils:test_helper",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/tests/utils",
+      "target": "tests/test_data/duplicate_names/tests/utils:common_function",
+      "type": "module-entity"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/src/utils",
+      "target": "tests/test_data/duplicate_names/tests/sample_test",
       "type": "module-module"
     },
     {
-      "source": "comma_imports.py",
-      "target": "module_c.py",
+      "source": "os",
+      "target": "codegraph/core",
       "type": "module-module"
     },
     {
-      "source": "core.py",
-      "target": "parser.py",
+      "source": "tempfile",
+      "target": "tests/test_graph_generation",
       "type": "module-module"
     },
     {
-      "source": "test_codegraph.py",
-      "target": "core.py",
+      "source": "webbrowser",
+      "target": "codegraph/vizualyzer",
       "type": "module-module"
     },
     {
-      "source": "module_a.py",
-      "target": "module_b.py",
+      "source": "tests",
+      "target": "tests/test_data/duplicate_names/tests/sample_test",
       "type": "module-module"
     },
     {
-      "source": "core.py",
-      "target": "utils.py",
+      "source": "csv",
+      "target": "tests/test_graph_generation",
       "type": "module-module"
     },
     {
-      "source": "main.py",
-      "target": "core.py",
+      "source": "codegraph",
+      "target": "tests/test_graph_generation",
       "type": "module-module"
     },
     {
-      "source": "test_package_install.py",
-      "target": "__init__.py",
+      "source": "argparse",
+      "target": "tests/test_package_install",
       "type": "module-module"
     },
     {
-      "source": "module_b.py",
-      "target": "module_c.py",
+      "source": "codegraph/core",
+      "target": "tests/test_data/module_a",
       "type": "module-module"
     },
     {
-      "source": "test_graph_generation.py",
-      "target": "core.py",
+      "source": "networkx",
+      "target": "codegraph/vizualyzer",
       "type": "module-module"
     },
     {
-      "source": "alias_imports.py",
-      "target": "module_a.py",
+      "source": "codegraph/core",
+      "target": "tests/test_graph_generation",
       "type": "module-module"
     },
     {
-      "source": "main.py",
-      "target": "vizualyzer.py",
+      "source": "os",
+      "target": "tests/test_package_install",
       "type": "module-module"
     },
     {
-      "source": "test_graph_generation.py",
-      "target": "vizualyzer.py",
+      "source": "pprint",
+      "target": "codegraph/main",
       "type": "module-module"
     },
     {
-      "source": "module_a.py",
-      "target": "module_c.py",
+      "source": "pathlib",
+      "target": "tests/test_codegraph",
       "type": "module-module"
     },
     {
-      "source": "test_utils.py",
-      "target": "utils.py",
+      "source": "csv",
+      "target": "codegraph/vizualyzer",
       "type": "module-module"
     },
     {
-      "source": "comma_imports.py",
-      "target": "module_b.py",
+      "source": "tests/test_data/module_a",
+      "target": "tests/test_data/alias_imports",
       "type": "module-module"
     },
     {
-      "source": "main.py",
-      "target": "__init__.py",
+      "source": "argparse",
+      "target": "tests/test_codegraph",
       "type": "module-module"
     },
     {
-      "source": "test_package_install.py",
-      "target": "core.py",
+      "source": "tests/test_data/module_c",
+      "target": "tests/test_data/module_a",
       "type": "module-module"
     },
     {
-      "source": "test_package_install.py",
-      "target": "main.py",
+      "source": "typing",
+      "target": "codegraph/core",
       "type": "module-module"
     },
     {
-      "source": "test_graph_generation.py",
-      "target": "parser.py",
+      "source": "matplotlib",
+      "target": "codegraph/vizualyzer",
       "type": "module-module"
     },
     {
-      "source": "comma_imports.py",
-      "target": "module_a.py",
+      "source": "token",
+      "target": "codegraph/parser",
       "type": "module-module"
     },
     {
-      "source": "test_package_install.py",
-      "target": "vizualyzer.py",
+      "source": "codegraph/core",
+      "target": "codegraph/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "io",
+      "target": "codegraph/parser",
+      "type": "module-module"
+    },
+    {
+      "source": "logging",
+      "target": "codegraph/core",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/parser",
+      "target": "tests/test_graph_generation",
+      "type": "module-module"
+    },
+    {
+      "source": "argparse",
+      "target": "codegraph/main",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph",
+      "target": "tests/test_utils",
+      "type": "module-module"
+    },
+    {
+      "source": "matplotlib",
+      "target": "tests/test_data/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "tests/test_data/module_b",
+      "target": "tests/test_data/module_a",
+      "type": "module-module"
+    },
+    {
+      "source": "tests",
+      "target": "tests/test_data/module_a",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "tests/test_data/comma_imports",
+      "type": "module-module"
+    },
+    {
+      "source": "logging",
+      "target": "codegraph/main",
+      "type": "module-module"
+    },
+    {
+      "source": "typing",
+      "target": "codegraph/utils",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "tests/test_data/alias_imports",
+      "type": "module-module"
+    },
+    {
+      "source": "pathlib",
+      "target": "tests/test_graph_generation",
+      "type": "module-module"
+    },
+    {
+      "source": "json",
+      "target": "codegraph/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "pathlib",
+      "target": "codegraph/utils",
+      "type": "module-module"
+    },
+    {
+      "source": "click",
+      "target": "codegraph/main",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph",
+      "target": "tests/test_codegraph",
+      "type": "module-module"
+    },
+    {
+      "source": "click",
+      "target": "tests/test_package_install",
+      "type": "module-module"
+    },
+    {
+      "source": "tests/test_data/module_c",
+      "target": "tests/test_data/comma_imports",
+      "type": "module-module"
+    },
+    {
+      "source": "networkx",
+      "target": "tests/test_data/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "os",
+      "target": "codegraph/utils",
+      "type": "module-module"
+    },
+    {
+      "source": "typing",
+      "target": "codegraph/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph",
+      "target": "codegraph/core",
+      "type": "module-module"
+    },
+    {
+      "source": "pytest",
+      "target": "tests/test_utils",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "tests/test_data/duplicate_names/src/main",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/parser",
+      "target": "codegraph/core",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/vizualyzer",
+      "target": "tests/test_data/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/tests/utils",
+      "target": "tests/test_data/duplicate_names/tests/sample_test",
+      "type": "module-module"
+    },
+    {
+      "source": "sys",
+      "target": "codegraph/main",
+      "type": "module-module"
+    },
+    {
+      "source": "tempfile",
+      "target": "tests/test_package_install",
+      "type": "module-module"
+    },
+    {
+      "source": "os",
+      "target": "codegraph/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "glob",
+      "target": "codegraph/utils",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph",
+      "target": "codegraph/main",
+      "type": "module-module"
+    },
+    {
+      "source": "logging",
+      "target": "codegraph/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph",
+      "target": "tests/test_package_install",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "tests/test_data/module_b",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "tests/test_utils",
+      "type": "module-module"
+    },
+    {
+      "source": "tests/test_data/module_b",
+      "target": "tests/test_data/comma_imports",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "codegraph/main",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "tests/test_data/duplicate_names/tests/sample_test",
+      "type": "module-module"
+    },
+    {
+      "source": "tests",
+      "target": "tests/test_data/comma_imports",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "tests/test_package_install",
+      "type": "module-module"
+    },
+    {
+      "source": "tests/test_data/module_b",
+      "target": "tests/test_data/alias_imports",
+      "type": "module-module"
+    },
+    {
+      "source": "argparse",
+      "target": "tests/test_graph_generation",
+      "type": "module-module"
+    },
+    {
+      "source": "src",
+      "target": "tests/test_data/duplicate_names/src/main",
+      "type": "module-module"
+    },
+    {
+      "source": "tests/test_data/module_c",
+      "target": "tests/test_data/module_b",
+      "type": "module-module"
+    },
+    {
+      "source": "pathlib",
+      "target": "tests/test_utils",
+      "type": "module-module"
+    },
+    {
+      "source": "tokenize",
+      "target": "codegraph/parser",
+      "type": "module-module"
+    },
+    {
+      "source": "tests",
+      "target": "tests/test_data/alias_imports",
+      "type": "module-module"
+    },
+    {
+      "source": "os",
+      "target": "tests/test_data/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/core",
+      "target": "tests/test_codegraph",
+      "type": "module-module"
+    },
+    {
+      "source": "tests/test_data/module_a",
+      "target": "tests/test_data/comma_imports",
+      "type": "module-module"
+    },
+    {
+      "source": "tests/test_data/duplicate_names/src/utils",
+      "target": "tests/test_data/duplicate_names/src/main",
+      "type": "module-module"
+    },
+    {
+      "source": "collections",
+      "target": "codegraph/core",
+      "type": "module-module"
+    },
+    {
+      "source": "typing",
+      "target": "codegraph/parser",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph",
+      "target": "codegraph/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/vizualyzer",
+      "target": "codegraph/main",
+      "type": "module-module"
+    },
+    {
+      "source": "codegraph/vizualyzer",
+      "target": "tests/test_package_install",
+      "type": "module-module"
+    },
+    {
+      "source": "typing",
+      "target": "tests/test_data/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "argparse",
+      "target": "codegraph/core",
+      "type": "module-module"
+    },
+    {
+      "source": "click",
+      "target": "codegraph/vizualyzer",
+      "type": "module-module"
+    },
+    {
+      "source": "tests",
+      "target": "tests/test_data/module_b",
       "type": "module-module"
     }
   ],
-  "unlinkedModules": []
+  "unlinkedModules": [
+    {
+      "id": "codegraph/__init__",
+      "fullPath": "codegraph/__init__.py"
+    },
+    {
+      "id": "tests/__init__",
+      "fullPath": "tests/__init__.py"
+    }
+  ]
 };
 
 // Panel drag and collapse functionality
@@ -2300,7 +3330,7 @@ document.getElementById('links-threshold').addEventListener('input', updateLinks
 updateLinksCount();
 
 // Size scaling state
-let sizeByCode = true;
+let sizeByCode = false;
 
 // Calculate max lines for scaling
 const maxLines = Math.max(...graphData.nodes.map(n => n.lines || 0), 1);
@@ -2380,6 +3410,113 @@ function updateFontSizes(scale) {
     });
 }
 
+function updateIconWireSizes(scale) {
+    // Update node sizes with scaling
+    node.each(function(d) {
+        const el = d3.select(this);
+        const isHighlighted = el.classed('highlighted-main') || el.classed('highlighted');
+        const isDimmed = el.classed('dimmed');
+        const multiplier = (isHighlighted && !isDimmed) ? iconWireScaleFactor / scale : 1;
+        if (d.type === "module") {
+            const baseSize = getNodeSize(d, 30);
+            const size = baseSize * multiplier;
+            // Use scale factor to determine reasonable max (higher scale factor = higher max)
+            const maxSize = 200 * iconWireScaleFactor;
+            const clampedSize = Math.max(10, Math.min(maxSize, size));
+            el.select("rect")
+                .attr("width", clampedSize)
+                .attr("height", clampedSize)
+                .attr("x", -clampedSize / 2)
+                .attr("y", -clampedSize / 2);
+        } else if (d.type === "entity" || d.type === "external") {
+            const baseR = getNodeSize(d, 10);
+            const r = baseR * multiplier;
+            // Use scale factor to determine reasonable max (higher scale factor = higher max)
+            const maxR = 100 * iconWireScaleFactor;
+            const clampedR = Math.max(5, Math.min(maxR, r));
+            el.select("circle").attr("r", clampedR);
+        }
+    });
+    // Update link stroke widths
+    link.each(function(d) {
+        const el = d3.select(this);
+        const isHighlighted = el.classed('highlighted');
+        const isDimmed = el.classed('dimmed');
+        
+        // Use same multiplier as icons - only highlighted arrows scale with zoom
+        const multiplier = (isHighlighted && !isDimmed) ? iconWireScaleFactor / scale : 1;
+        
+        // Use same base width for all link types for consistent arrow scaling
+        const baseWidth = 2;
+        
+        const width = baseWidth * multiplier;
+        // Reduce max for better balance
+        const maxWidth = 18.75 * iconWireScaleFactor;
+        const clampedWidth = Math.max(1, Math.min(maxWidth, width));
+        el.style("stroke-width", clampedWidth + "px");
+    });
+    // Update labels position
+    labels.attr("dy", d => {
+        const el = node.filter(n => n.id === d.id);
+        if (d.type === "module") {
+            const size = +el.select("rect").attr("width");
+            return size / 2 + 15;
+        } else {
+            const r = +el.select("circle").attr("r");
+            return r + 10;
+        }
+    });
+}
+
+function isLinkHighlighted(d, highlightedNodeId) {
+    const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+    const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+    const isOut = sourceId === highlightedNodeId;
+    const isIn = targetId === highlightedNodeId;
+    if (d.type === 'module-module') {
+        if (isOut && highlightLinkFilters.mmOut) return true;
+        if (isIn && highlightLinkFilters.mmIn) return true;
+    } else if (d.type === 'module-entity') {
+        if (isOut && highlightLinkFilters.meOut) return true;
+        if (isIn && highlightLinkFilters.meIn) return true;
+    } else if (d.type === 'dependency') {
+        // Entity-to-entity or entity-to-external dependencies
+        // Always highlight these when the entity is selected
+        if (isOut || isIn) return true;
+    }
+    return false;
+}
+
+function formatPathForDisplay(fullPath, levels) {
+    if (!fullPath) return '';
+    
+    const parts = fullPath.split(/[\/\\]/);
+    if (levels <= 0) {
+        // Return just filename
+        return parts[parts.length - 1] || '';
+    }
+    
+    const startIndex = Math.max(0, parts.length - levels - 1);
+    return parts.slice(startIndex).join('/');
+}
+
+function updatePathDisplay() {
+    labels.text(function(d) {
+        const isHighlighted = d3.select(this).classed('highlighted-label');
+        const originalLabel = d.label || d.id;
+        
+        if (!isHighlighted) {
+            return originalLabel;
+        }
+        
+        const fullPath = d.fullPath || d.parent;
+        if (!fullPath) return originalLabel;
+        
+        const displayPath = formatPathForDisplay(fullPath, pathSubfolderLevels);
+        return displayPath || originalLabel;
+    });
+}
+
 const zoom = d3.zoom()
     .scaleExtent([0.05, 4])
     .on("zoom", (event) => {
@@ -2387,6 +3524,7 @@ const zoom = d3.zoom()
         currentScale = event.transform.k;
         // Adjust font sizes based on zoom scale
         updateFontSizes(currentScale);
+        updateIconWireSizes(currentScale);
     });
 
 svg.call(zoom);
@@ -2413,10 +3551,10 @@ const defs = svg.append("defs");
 defs.append("marker")
     .attr("id", "arrow-module-module")
     .attr("viewBox", "0 -5 10 10")
-    .attr("refX", 25)
+    .attr("refX", 18)
     .attr("refY", 0)
-    .attr("markerWidth", 8)
-    .attr("markerHeight", 8)
+    .attr("markerWidth", 6)
+    .attr("markerHeight", 6)
     .attr("orient", "auto")
     .append("path")
     .attr("fill", "#ff9800")
@@ -2546,13 +3684,14 @@ function updateNodeSizes() {
 document.getElementById('size-by-code').addEventListener('change', function() {
     sizeByCode = this.checked;
     updateNodeSizes();
+    updateIconWireSizes(currentScale);
 });
 
 // Display filter state
 const displayFilters = {
     showModules: true,
-    showClasses: true,
-    showFunctions: true,
+    showClasses: false,
+    showFunctions: false,
     showExternal: true,
     showLinkModule: true,
     showLinkEntity: true,
@@ -2563,35 +3702,76 @@ const displayFilters = {
 document.getElementById('show-modules').addEventListener('change', function() {
     displayFilters.showModules = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-classes').addEventListener('change', function() {
     displayFilters.showClasses = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-functions').addEventListener('change', function() {
     displayFilters.showFunctions = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-external').addEventListener('change', function() {
     displayFilters.showExternal = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-link-module').addEventListener('change', function() {
     displayFilters.showLinkModule = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-link-entity').addEventListener('change', function() {
     displayFilters.showLinkEntity = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('show-link-dependency').addEventListener('change', function() {
     displayFilters.showLinkDependency = this.checked;
     updateDisplayFilters();
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
 });
 document.getElementById('max-highlight-font').addEventListener('input', function() {
     maxHighlightFontSize = parseInt(this.value) || 32;
     // Update font sizes immediately
     updateFontSizes(currentScale);
+});
+document.getElementById('icon-wire-scale').addEventListener('input', function() {
+    iconWireScaleFactor = parseFloat(this.value) || 1.0;
+    // Update icon and wire sizes immediately
+    updateIconWireSizes(currentScale);
+});
+document.getElementById('highlight-focus-mode').addEventListener('change', function() {
+    highlightFocusMode = this.checked;
+    if (currentHighlightedNode) {
+        highlightNode(currentHighlightedNode);
+    } else if (!this.checked) {
+        // When turning off focus mode without active highlight, restore display filters
+        updateDisplayFilters();
+    }
+});
+document.getElementById('highlight-link-mm-out').addEventListener('change', function() {
+    highlightLinkFilters.mmOut = this.checked;
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
+});
+document.getElementById('highlight-link-mm-in').addEventListener('change', function() {
+    highlightLinkFilters.mmIn = this.checked;
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
+});
+document.getElementById('highlight-link-me-out').addEventListener('change', function() {
+    highlightLinkFilters.meOut = this.checked;
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
+});
+document.getElementById('highlight-link-me-in').addEventListener('change', function() {
+    highlightLinkFilters.meIn = this.checked;
+    if (currentHighlightedNode) highlightNode(currentHighlightedNode);
+});
+document.getElementById('path-subfolder-levels').addEventListener('input', function() {
+    pathSubfolderLevels = parseInt(this.value) || 0;
+    updatePathDisplay();
 });
 
 // Check if node should be hidden by display filter
@@ -2663,6 +3843,9 @@ const labels = g.append("g")
 
 // Initialize font sizes
 updateFontSizes(1);
+
+// Apply initial display filters
+updateDisplayFilters();
 
 // Node interactions
 node.on("mouseover", function(event, d) {
@@ -2870,11 +4053,86 @@ const searchInput = document.getElementById('searchInput');
 const searchClear = document.getElementById('searchClear');
 const autocompleteList = document.getElementById('autocompleteList');
 
+// Navigation history
+let highlightHistory = [];
+let historyIndex = -1;
+let isNavigating = false; // Flag to prevent adding to history during navigation
+
+const backButton = document.getElementById('backButton');
+const forwardButton = document.getElementById('forwardButton');
+
+function updateNavigationButtons() {
+    backButton.disabled = historyIndex <= 0;
+    forwardButton.disabled = historyIndex >= highlightHistory.length - 1;
+}
+
+function addToHistory(nodeId) {
+    if (isNavigating) return; // Don't add to history during back/forward navigation
+    
+    // Remove any forward history when a new node is selected
+    highlightHistory = highlightHistory.slice(0, historyIndex + 1);
+    
+    // Add new node (avoid duplicates of the same node in a row)
+    if (highlightHistory[historyIndex] !== nodeId) {
+        highlightHistory.push(nodeId);
+        historyIndex++;
+    }
+    
+    updateNavigationButtons();
+}
+
+function navigateBack() {
+    if (historyIndex > 0) {
+        isNavigating = true;
+        historyIndex--;
+        const nodeId = highlightHistory[historyIndex];
+        highlightNode(nodeId);
+        isNavigating = false;
+        updateNavigationButtons();
+    }
+}
+
+function navigateForward() {
+    if (historyIndex < highlightHistory.length - 1) {
+        isNavigating = true;
+        historyIndex++;
+        const nodeId = highlightHistory[historyIndex];
+        highlightNode(nodeId);
+        isNavigating = false;
+        updateNavigationButtons();
+    }
+}
+
+backButton.addEventListener('click', navigateBack);
+forwardButton.addEventListener('click', navigateForward);
+
+// Keyboard shortcuts for navigation
+document.addEventListener('keydown', (e) => {
+    if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigateBack();
+    } else if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigateForward();
+    }
+});
+
+
 let selectedAutocompleteIndex = -1;
 let currentHighlightedNode = null;
-let maxHighlightFontSize = 32;
+let maxHighlightFontSize = 256;
+let iconWireScaleFactor = 1.0;
 let currentScale = 1;
 let filteredNodes = [];
+let highlightFocusMode = false;
+let highlightLinkFilters = {
+    mmOut: true,
+    mmIn: false,
+    meOut: true,
+    meIn: false
+};
+let showHighlightedPath = true;
+let pathSubfolderLevels = 0;
 
 // Build searchable index
 const searchIndex = graphData.nodes.map(n => ({
@@ -2882,7 +4140,15 @@ const searchIndex = graphData.nodes.map(n => ({
     label: n.label || n.id,
     type: n.type,
     parent: n.parent || null,
-    searchText: ((n.label || n.id) + ' ' + (n.parent || '')).toLowerCase()
+    fullPath: n.fullPath || null,
+    // For modules, include both 'modulename' and 'modulename.py' as separate searchable terms, plus imports
+    // For entities, search by label and parent
+    searchText: n.type === 'module' 
+        ? (n.label || n.id).toLowerCase() + ' ' + 
+          (n.label || n.id).toLowerCase() + '.py ' + 
+          (n.fullPath || '').toLowerCase() + ' ' +
+          ((n.imports || []).join(' ')).toLowerCase()
+        : ((n.label || n.id) + ' ' + (n.parent || '')).toLowerCase()
 }));
 
 // Get connected nodes for a given node
@@ -2953,60 +4219,232 @@ function zoomToFitNodes(nodeIds) {
 
 // Highlight a node and its connections
 function highlightNode(nodeId) {
-    const connectedNodes = getConnectedNodes(nodeId);
+    // Add to history (unless we're navigating)
+    addToHistory(nodeId);
+    
+    // In focus mode, build chain from ALL dependency links
+    // In normal mode, use filtered links based on highlight settings
+    const connectedLinks = highlightFocusMode 
+        ? graphData.links.filter(d => {
+            const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+            const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+            return sourceId === nodeId || targetId === nodeId;
+          })
+        : graphData.links.filter(d => isLinkHighlighted(d, nodeId));
+    
+    const connectedNodes = new Set();
+    connectedLinks.forEach(l => {
+        const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+        const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+        if (sourceId !== nodeId) connectedNodes.add(sourceId);
+        if (targetId !== nodeId) connectedNodes.add(targetId);
+    });
     currentHighlightedNode = nodeId;
 
-    // Update nodes
-    node.classed('dimmed', d => !connectedNodes.has(d.id))
-        .classed('highlighted', d => connectedNodes.has(d.id) && d.id !== nodeId)
-        .classed('highlighted-main', d => d.id === nodeId);
+    if (highlightFocusMode) {
+        // Focus mode: show all chain nodes (ignore filters), hide background nodes completely
+        node.each(function(d) {
+            const el = d3.select(this);
+            if (d.id === nodeId) {
+                el.classed('dimmed', false)
+                  .classed('highlighted', false)
+                  .classed('highlighted-main', true)
+                  .classed('node-hidden', false);
+            } else if (connectedNodes.has(d.id)) {
+                // Check if this node should be highlighted or dimmed
+                const shouldHighlight = connectedLinks.some(l => {
+                    const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+                    const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+                    return (sourceId === d.id || targetId === d.id) && isLinkHighlighted(l, nodeId);
+                });
+                el.classed('dimmed', !shouldHighlight)
+                  .classed('highlighted', shouldHighlight)
+                  .classed('highlighted-main', false)
+                  .classed('node-hidden', false);
+            } else {
+                // Background nodes - completely hidden
+                el.classed('dimmed', false)
+                  .classed('highlighted', false)
+                  .classed('highlighted-main', false)
+                  .classed('node-hidden', true);
+            }
+        });
+    } else {
+        // Normal mode: respect filters, only dim background
+        // First, clear node-hidden from all nodes to undo focus mode
+        node.classed('node-hidden', d => isNodeFilteredOut(d) || isNodeHidden(d));
+        
+        // Then apply highlight classes only to visible nodes
+        node.filter(d => !isNodeFilteredOut(d) && !isNodeHidden(d))
+            .classed('dimmed', d => d.id !== nodeId && !connectedNodes.has(d.id))
+            .classed('highlighted', d => connectedNodes.has(d.id) && d.id !== nodeId)
+            .classed('highlighted-main', d => d.id === nodeId);
+    }
 
     // Update links
-    link.classed('dimmed', d => {
-        const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
-        const targetId = typeof d.target === 'object' ? d.target.id : d.target;
-        return sourceId !== nodeId && targetId !== nodeId;
-    })
-    .classed('highlighted', d => {
-        const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
-        const targetId = typeof d.target === 'object' ? d.target.id : d.target;
-        return sourceId === nodeId || targetId === nodeId;
-    });
+    if (highlightFocusMode) {
+        // Focus mode: show only links between chain nodes
+        link.each(function(d) {
+            const el = d3.select(this);
+            const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+            const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+            const sourceInChain = sourceId === nodeId || connectedNodes.has(sourceId);
+            const targetInChain = targetId === nodeId || connectedNodes.has(targetId);
+            
+            if (sourceInChain && targetInChain) {
+                // Link is part of the chain
+                const isHighlighted = isLinkHighlighted(d, nodeId);
+                el.classed('dimmed', !isHighlighted)
+                  .classed('highlighted', isHighlighted)
+                  .classed('link-hidden', false)
+                  .style('stroke-opacity', isHighlighted ? 1 : 0.4);
+            } else {
+                // Background link - completely hidden
+                el.classed('dimmed', false)
+                  .classed('highlighted', false)
+                  .classed('link-hidden', true)
+                  .style('stroke-opacity', null);
+            }
+        });
+    } else {
+        // Normal mode: filter out links connected to hidden nodes
+        // First, clear any inline stroke-opacity styles from focus mode
+        link.style('stroke-opacity', null);
+        
+        link.filter(d => {
+                // First check if the link type is filtered out
+                if (isLinkFilteredOut(d)) return false;
+                
+                const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+                const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+                const sourceNode = graphData.nodes.find(n => n.id === sourceId);
+                const targetNode = graphData.nodes.find(n => n.id === targetId);
+                const sourceVisible = sourceNode && !isNodeFilteredOut(sourceNode) && !isNodeHidden(sourceNode);
+                const targetVisible = targetNode && !isNodeFilteredOut(targetNode) && !isNodeHidden(targetNode);
+                return sourceVisible && targetVisible;
+            })
+            .classed('dimmed', d => !isLinkHighlighted(d, nodeId))
+            .classed('highlighted', d => isLinkHighlighted(d, nodeId));
+        
+        // Reapply link-hidden to ALL links to ensure hidden links stay hidden (normal mode only)
+        link.classed('link-hidden', d => {
+            if (isLinkFilteredOut(d)) return true;
+            const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+            const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+            const sourceNode = graphData.nodes.find(n => n.id === sourceId);
+            const targetNode = graphData.nodes.find(n => n.id === targetId);
+            if (sourceNode && isNodeFilteredOut(sourceNode)) return true;
+            if (targetNode && isNodeFilteredOut(targetNode)) return true;
+            if (d.type === 'module-module') return false;
+            if (sourceNode && isNodeHidden(sourceNode)) return true;
+            if (targetNode && isNodeHidden(targetNode)) return true;
+            if (d.type === 'module-entity' && collapsedNodes.has(sourceId)) return true;
+            if (d.type === 'dependency' && collapsedNodes.has(sourceId)) return true;
+            return false;
+        });
+    }
 
     // Update labels
-    labels.classed('dimmed', d => !connectedNodes.has(d.id))
-        .classed('highlighted-label', d => connectedNodes.has(d.id));
+    if (highlightFocusMode) {
+        // Focus mode: show all chain labels (ignore filters), hide background labels
+        labels.each(function(d) {
+            const el = d3.select(this);
+            const nodeEl = node.filter(n => n.id === d.id);
+            const isNodeDimmed = nodeEl.classed('dimmed');
+            
+            if (d.id === nodeId || connectedNodes.has(d.id)) {
+                el.classed('dimmed', isNodeDimmed)
+                  .classed('highlighted-label', !isNodeDimmed)
+                  .classed('label-hidden', false);
+            } else {
+                el.classed('dimmed', false)
+                  .classed('highlighted-label', false)
+                  .classed('label-hidden', true);
+            }
+        });
+    } else {
+        // Normal mode: respect filters
+        // First, clear label-hidden from all labels and reapply based on filters
+        labels.classed('label-hidden', d => isNodeFilteredOut(d) || isNodeHidden(d));
+        
+        // Then apply highlight classes only to visible labels
+        labels.filter(d => !isNodeFilteredOut(d) && !isNodeHidden(d))
+            .classed('dimmed', d => d.id !== nodeId && !connectedNodes.has(d.id))
+            .classed('highlighted-label', d => d.id === nodeId || connectedNodes.has(d.id));
+    }
 
     // Zoom to fit all connected nodes
     zoomToFitNodes(connectedNodes);
+    updateIconWireSizes(currentScale);
+    updatePathDisplay();
 }
 
 // Clear all highlighting
 function clearHighlight() {
     currentHighlightedNode = null;
 
+    // Clear highlight classes from all nodes and restore filter state
     node.classed('dimmed', false)
         .classed('highlighted', false)
         .classed('highlighted-main', false);
+    
+    // Restore node-hidden based on filters
+    node.classed('node-hidden', d => isNodeFilteredOut(d) || isNodeHidden(d));
 
     link.classed('dimmed', false)
         .classed('highlighted', false);
 
+    // Clear highlight classes from all labels and restore filter state
     labels.classed('dimmed', false)
         .classed('highlighted-label', false);
+    
+    // Restore label-hidden based on filters
+    labels.classed('label-hidden', d => isNodeFilteredOut(d) || isNodeHidden(d));
+    
+    // Restore display filters
+    updateDisplayFilters();
 
     searchInput.value = '';
     searchClear.classList.remove('visible');
     hideAutocomplete();
+    updateIconWireSizes(currentScale);
+    updatePathDisplay();
 }
 
 // Filter nodes based on search query
 function filterNodes(query) {
     if (!query) return [];
     const lowerQuery = query.toLowerCase();
-    return searchIndex
-        .filter(n => n.searchText.includes(lowerQuery))
-        .slice(0, 10); // Limit to 10 results
+    const results = searchIndex.filter(n => n.searchText.includes(lowerQuery));
+    
+    // Sort results: prioritize exact label matches, then label starts with query, then path matches
+    results.sort((a, b) => {
+        const aLabel = (a.label || a.id).toLowerCase();
+        const bLabel = (b.label || b.id).toLowerCase();
+        const aLabelWithPy = aLabel + '.py';
+        const bLabelWithPy = bLabel + '.py';
+        
+        // Exact matches come first
+        if (aLabel === lowerQuery || aLabelWithPy === lowerQuery) return -1;
+        if (bLabel === lowerQuery || bLabelWithPy === lowerQuery) return 1;
+        
+        // Label starts with query comes next
+        const aStarts = aLabel.startsWith(lowerQuery) || aLabelWithPy.startsWith(lowerQuery);
+        const bStarts = bLabel.startsWith(lowerQuery) || bLabelWithPy.startsWith(lowerQuery);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        
+        // Label contains query comes before path contains query
+        const aLabelContains = aLabel.includes(lowerQuery) || aLabelWithPy.includes(lowerQuery);
+        const bLabelContains = bLabel.includes(lowerQuery) || bLabelWithPy.includes(lowerQuery);
+        if (aLabelContains && !bLabelContains) return -1;
+        if (!aLabelContains && bLabelContains) return 1;
+        
+        // Otherwise alphabetical
+        return aLabel.localeCompare(bLabel);
+    });
+    
+    return results.slice(0, 50); // Limit to 50 results
 }
 
 // Render autocomplete list
@@ -3019,13 +4457,20 @@ function renderAutocomplete(results) {
     filteredNodes = results;
     selectedAutocompleteIndex = -1;
 
-    autocompleteList.innerHTML = results.map((n, i) => `
-        <div class="autocomplete-item" data-index="${i}" data-id="${n.id}">
-            <span class="node-type ${n.type}">${n.type}</span>
-            <span class="node-name">${n.label}</span>
-            ${n.parent ? `<span class="node-parent">${n.parent}</span>` : ''}
-        </div>
-    `).join('');
+    autocompleteList.innerHTML = results.map((n, i) => {
+        // For modules, show fullPath; for entities, show parent
+        const pathInfo = n.type === 'module' && n.fullPath 
+            ? `<span class="node-parent">${n.fullPath}</span>`
+            : n.parent ? `<span class="node-parent">${n.parent}</span>` : '';
+        
+        return `
+            <div class="autocomplete-item" data-index="${i}" data-id="${n.id}">
+                <span class="node-type ${n.type}">${n.type}</span>
+                <span class="node-name">${n.label}</span>
+                ${pathInfo}
+            </div>
+        `;
+    }).join('');
 
     autocompleteList.classList.add('visible');
 

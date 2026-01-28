@@ -16,6 +16,8 @@
     <!-- Search box -->
     <div class="search-container">
         <div class="search-box">
+            <button class="nav-button" id="backButton" title="Back (Alt+Left)" disabled>◀</button>
+            <button class="nav-button" id="forwardButton" title="Forward (Alt+Right)" disabled>▶</button>
             <input type="text" class="search-input" id="searchInput" placeholder="Search nodes... (Ctrl+F)" autocomplete="off">
             <button class="search-clear" id="searchClear">&times;</button>
             <div class="autocomplete-list" id="autocompleteList"></div>
@@ -128,22 +130,22 @@
             <ul id="massive-list"></ul>
         </div>
     </div>
-    <div class="panel size-toggle collapsed" id="size-toggle-panel">
+    <div class="panel size-toggle" id="size-toggle-panel">
         <div class="panel-header">
             <h4>Display</h4>
-            <button class="panel-toggle" title="Expand">+</button>
+            <button class="panel-toggle" title="Collapse">-</button>
         </div>
         <div class="panel-content">
             <label>
-                <input type="checkbox" id="size-by-code" checked>
+                <input type="checkbox" id="size-by-code">
                 Size by lines of code
             </label>
             <div class="display-section">
                 <h5>Show nodes</h5>
-                <label><input type="checkbox" id="show-modules" checked> Modules</label>
-                <label><input type="checkbox" id="show-classes" checked> Classes</label>
-                <label><input type="checkbox" id="show-functions" checked> Functions</label>
                 <label><input type="checkbox" id="show-external" checked> External</label>
+                <label><input type="checkbox" id="show-modules" checked> Modules</label>
+                <label><input type="checkbox" id="show-classes"> Classes</label>
+                <label><input type="checkbox" id="show-functions"> Functions</label>
             </div>
             <div class="display-section">
                 <h5>Show links</h5>
@@ -152,8 +154,20 @@
                 <label><input type="checkbox" id="show-link-dependency" checked> Dependencies</label>
             </div>
             <div class="display-section">
-                <h5>Font Settings</h5>
-                <label>Max highlighted font size: <input type="number" id="max-highlight-font" value="32" min="16" max="100"></label>
+                <h5>Highlight Settings</h5>
+                <label>
+                    <input type="checkbox" id="highlight-focus-mode">
+                    Focus mode (hide background, show all chain nodes)
+                </label>
+                <label>Max highlighted font size: <input type="number" id="max-highlight-font" value="256" min="16" max="512"></label>
+                <label>Icon and wire scale factor: <input type="number" id="icon-wire-scale" value="1.0" min="0.1" max="5" step="0.1"></label>
+                <label>Subfolder levels: <input type="number" id="path-subfolder-levels" value="0" min="0" max="10"></label>
+                <div style="margin-top: 8px;">
+                    <label><input type="checkbox" id="highlight-link-mm-out" checked> Module → Module</label>
+                    <label><input type="checkbox" id="highlight-link-mm-in"> Module ← Module</label>
+                    <label><input type="checkbox" id="highlight-link-me-out" checked> Module → Entity</label>
+                    <label><input type="checkbox" id="highlight-link-me-in"> Module ← Entity</label>
+                </div>
             </div>
         </div>
     </div>

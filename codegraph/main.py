@@ -40,7 +40,18 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
     type=click.Path(),
     help="Export graph data to CSV file (specify output path)",
 )
-def cli(paths, object_only, file_path, distance, matplotlib, output, csv):
+@click.option(
+    "--depth",
+    type=int,
+    required=True,
+    help="Maximum subfolder depth to scan (1=original/sub1, 2=original/sub1/sub2, etc.)",
+)
+@click.option(
+    "--keyword",
+    type=str,
+    help="Filter to only show modules related to this keyword (reduces graph size for large codebases)",
+)
+def cli(paths, object_only, file_path, distance, matplotlib, output, csv, depth, keyword):
     """
     Tool that creates a graph of code to show dependencies between code entities (methods, classes, etc.).
     CodeGraph does not execute code, it is based only on lex and syntax parsing.
@@ -62,6 +73,8 @@ def cli(paths, object_only, file_path, distance, matplotlib, output, csv):
         matplotlib=matplotlib,
         output=output,
         csv=csv,
+        depth=depth,
+        keyword=keyword,
     )
     main(args)
 
@@ -70,6 +83,8 @@ def main(args):
     code_graph = core.CodeGraph(args)
     usage_graph = code_graph.usage_graph()
     entity_metadata = code_graph.get_entity_metadata()
+    base_paths = code_graph.base_paths
+    raw_imports = code_graph.raw_imports  # Raw imports before they get popped
 
     if args.file_path and args.distance:
         dependencies = code_graph.get_dependencies(args.file_path, args.distance)
@@ -81,14 +96,16 @@ def main(args):
     elif args.csv:
         import codegraph.vizualyzer as vz
 
-        vz.export_to_csv(usage_graph, entity_metadata=entity_metadata, output_path=args.csv)
+        vz.export_to_csv(usage_graph, entity_metadata=entity_metadata, 
+                        output_path=args.csv, base_paths=base_paths, raw_imports=raw_imports)
     else:
         import codegraph.vizualyzer as vz
 
         if args.matplotlib:
-            vz.draw_graph_matplotlib(usage_graph)
+            vz.draw_graph_matplotlib(usage_graph, base_paths=base_paths)
         else:
-            vz.draw_graph(usage_graph, entity_metadata=entity_metadata, output_path=args.output)
+            vz.draw_graph(usage_graph, entity_metadata=entity_metadata, 
+                         output_path=args.output, base_paths=base_paths, raw_imports=raw_imports)
 
 
 if __name__ == "__main__":

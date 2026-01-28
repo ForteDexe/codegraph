@@ -88,9 +88,15 @@ def _nest_class(ob, class_name, lineno, super=None):
     return newclass
 
 
-def create_objects_array(fname, source):  # noqa: C901
+def create_objects_array(fname, source, base_paths=None):  # noqa: C901
     # todo: need to do optimization
-    """Return an object list for a particular module."""
+    """Return an object list for a particular module.
+    
+    :param fname: Full path to the file being parsed
+    :param source: Source code content
+    :param base_paths: List of base paths for calculating relative paths (optional)
+    :return: List of parsed objects
+    """
     tree = []
     f = io.StringIO(source)
 

@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "codegraph"
-version = "1.2.0"
+version = "1.5.0"
 license = "MIT"
 readme = "docs/README.rst"
-homepage = "https://github.com/xnuinside/codegraph"
-repository = "https://github.com/xnuinside/codegraph"
+homepage = "https://github.com/ForteDexe/codegraph"
+repository = "https://github.com/ForteDexe/codegraph"
 description = "Tool that create a graph of code to show dependencies between code entities (methods, classes and etc)."
-authors = ["xnuinside <xnuinside@gmail.com>"]
+authors = ["forted <forted.exe@gmail.com>"]
 classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
